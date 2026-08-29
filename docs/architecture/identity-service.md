@@ -181,7 +181,7 @@ Gateway and services validate the signature using cached JWKS, issuer, audience,
 
 ### Password reset and email verification
 
-Reset and verification requests create one-time hashed tokens with bounded expiry. The mailer receives only a safe delivery command containing the recipient and one-time token. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login. Development Compose uses an in-memory simulated mailbox that is exposed only through the local-only `/_test/mailbox/latest` endpoint when explicitly enabled; production requires the SMTP mailer and never exposes that endpoint.
+Reset and verification requests create one-time hashed tokens with bounded expiry. Newly registered users remain `PENDING_VERIFICATION` and cannot log in until the verification token is consumed. The mailer receives only a safe delivery command containing the recipient and one-time token. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login. Development Compose uses an in-memory simulated mailbox that is exposed only through the local-only `/_test/mailbox/latest` endpoint when explicitly enabled; production requires the SMTP mailer and never exposes that endpoint.
 
 ### Service-token exchange
 

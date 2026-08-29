@@ -85,7 +85,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domain.Use
 		return domain.User{}, err
 	}
 	now := s.clock.Now().UTC()
-	user := domain.User{ID: uuid.New(), Email: strings.TrimSpace(input.Email), EmailNormalized: domain.NormalizeEmail(input.Email), PasswordHash: hash, Status: domain.UserActive, CreatedAt: now, UpdatedAt: now}
+	user := domain.User{ID: uuid.New(), Email: strings.TrimSpace(input.Email), EmailNormalized: domain.NormalizeEmail(input.Email), PasswordHash: hash, Status: domain.UserPendingVerification, CreatedAt: now, UpdatedAt: now}
 	err = s.store.WithTransaction(ctx, func(tx Transaction) error {
 		created, createErr := tx.CreateUser(ctx, user)
 		if createErr != nil {

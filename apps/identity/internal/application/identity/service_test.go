@@ -29,10 +29,14 @@ func (errorLimiter) Allow(context.Context, string) (bool, error) {
 	return false, errors.New("redis unavailable")
 }
 
-type recordingMailer struct{ sent bool }
+type recordingMailer struct {
+	sent  bool
+	token string
+}
 
-func (m *recordingMailer) Send(context.Context, string, string, string) error {
+func (m *recordingMailer) Send(_ context.Context, _ string, _ string, token string) error {
 	m.sent = true
+	m.token = token
 	return nil
 }
 
@@ -251,6 +255,20 @@ func newServiceForTest(t *testing.T, store *fakeStore, limiter Limiter) *Service
 	return service
 }
 
+func registerAndVerify(t *testing.T, service *Service, email string) domain.User {
+	t.Helper()
+	mailer := &recordingMailer{}
+	service.mailer = mailer
+	user, err := service.Register(context.Background(), RegisterInput{Email: email, Password: "correct horse battery staple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.ConfirmEmail(context.Background(), mailer.token, "registration-test"); err != nil {
+		t.Fatal(err)
+	}
+	return user
+}
+
 func TestRegisterLoginRefreshAndLogout(t *testing.T) {
 	store := newFakeStore()
 	service := newServiceForTest(t, store, allowAll{})
@@ -262,6 +280,9 @@ func TestRegisterLoginRefreshAndLogout(t *testing.T) {
 	}
 	if !registrationMailer.sent {
 		t.Fatal("verification mail was not sent")
+	}
+	if err := service.ConfirmEmail(ctx, registrationMailer.token, "correlation"); err != nil {
+		t.Fatal(err)
 	}
 	credentials, user, _, err := service.Login(ctx, LoginInput{Email: "PERSON@example.test", Password: "correct horse battery staple"})
 	if err != nil {
@@ -464,10 +485,7 @@ func TestSessionListingLogoutAndRecoveryOutcomes(t *testing.T) {
 	store := newFakeStore()
 	service := newServiceForTest(t, store, allowAll{})
 	ctx := context.Background()
-	user, err := service.Register(ctx, RegisterInput{Email: "recover@example.test", Password: "correct horse battery staple"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	user := registerAndVerify(t, service, "recover@example.test")
 	credentials, _, _, err := service.Login(ctx, LoginInput{Email: user.Email, Password: "correct horse battery staple"})
 	if err != nil {
 		t.Fatal(err)
@@ -508,10 +526,7 @@ func TestRefreshReuseRevokesSessionFamily(t *testing.T) {
 	store := newFakeStore()
 	service := newServiceForTest(t, store, allowAll{})
 	ctx := context.Background()
-	user, err := service.Register(ctx, RegisterInput{Email: "reuse@example.test", Password: "correct horse battery staple"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	user := registerAndVerify(t, service, "reuse@example.test")
 	credentials, _, _, err := service.Login(ctx, LoginInput{Email: user.Email, Password: "correct horse battery staple"})
 	if err != nil {
 		t.Fatal(err)
@@ -536,10 +551,7 @@ func TestRefreshAndRoleLookupDependencyErrors(t *testing.T) {
 	if _, _, _, err := service.Refresh(context.Background(), RefreshInput{RefreshToken: "nonempty-refresh-token"}); !errors.Is(err, domain.ErrInvalidCredentials) {
 		t.Fatalf("missing session: %v", err)
 	}
-	user, err := service.Register(context.Background(), RegisterInput{Email: "roles-error@example.test", Password: "correct horse battery staple"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	user := registerAndVerify(t, service, "roles-error@example.test")
 	store.rolesErr = errors.New("role storage unavailable")
 	if _, _, _, err := service.Login(context.Background(), LoginInput{Email: user.Email, Password: "correct horse battery staple"}); err == nil {
 		t.Fatal("login role lookup error was ignored")

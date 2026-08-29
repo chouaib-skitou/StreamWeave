@@ -67,6 +67,7 @@ The system shall expose `POST /.well-known/register` only when demo registration
 **Consequences:**
 
 - A valid request creates a user with a normalized unique email and an Argon2id password hash.
+- A newly created user remains `PENDING_VERIFICATION` and cannot authenticate until the email-verification token is consumed.
 - The endpoint never returns a password, password hash, refresh token, or private key.
 - The endpoint is disabled by default in production configuration.
 - Duplicate normalized email handling does not reveal whether a production account exists; demo mode may return a documented conflict response.
