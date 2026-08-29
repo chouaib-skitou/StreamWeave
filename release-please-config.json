@@ -23,7 +23,8 @@
     { "type": "ci", "section": "CI", "hidden": true },
     { "type": "chore", "section": "Maintenance", "hidden": true }
   ],
-  "pull-request-title-pattern": "chore(release): Prepare ${version}",
+  "pull-request-title-pattern": "chore(${scope}): release ${component} ${version}",
+  "group-pull-request-title-pattern": "chore(${scope}): release ${component} ${version}",
   "pull-request-header": "This release pull request was generated from reviewed Conventional Commits.",
   "pull-request-footer": "After merge, Release Please publishes the VERSION, CHANGELOG.md, tag, and GitHub Release."
 }
