@@ -75,11 +75,16 @@ type SMTPMailer struct {
 	resetPath        string
 }
 
+const (
+	verificationPath = "/verify-email"
+	resetPath        = "/reset-password"
+)
+
 func NewSMTPMailer(host string, port int, username, password, from string) *SMTPMailer {
-	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: "http://localhost:3000", verificationPath: "/verify-email", resetPath: "/reset-password"}
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: "http://localhost:3000", verificationPath: verificationPath, resetPath: resetPath}
 }
 
-func NewConfiguredSMTPMailer(host string, port int, username, password, from, publicAppURL, verificationPath, resetPath string) *SMTPMailer {
+func NewConfiguredSMTPMailer(host string, port int, username, password, from, publicAppURL string) *SMTPMailer {
 	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: publicAppURL, verificationPath: verificationPath, resetPath: resetPath}
 }
 

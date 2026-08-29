@@ -50,8 +50,6 @@ services:
       IDENTITY_SMTP_PORT: '1025'
       IDENTITY_SMTP_FROM: identity@local.test
       IDENTITY_PUBLIC_APP_URL: http://localhost:3000
-      IDENTITY_EMAIL_VERIFICATION_PATH: /verify-email
-      IDENTITY_PASSWORD_RESET_PATH: /reset-password
     depends_on:
       identity-postgres: { condition: service_healthy }
       identity-redis: { condition: service_healthy }

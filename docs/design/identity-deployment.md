@@ -26,8 +26,6 @@ Required configuration names:
 | `IDENTITY_SMTP_USERNAME` / `IDENTITY_SMTP_PASSWORD` | SMTP credentials. | Username no; password yes |
 | `IDENTITY_SMTP_FROM` | Verified sender address. | No |
 | `IDENTITY_PUBLIC_APP_URL` | Base URL used in verification and reset links. | No |
-| `IDENTITY_EMAIL_VERIFICATION_PATH` | Frontend route for email verification links. | No |
-| `IDENTITY_PASSWORD_RESET_PATH` | Frontend route for password-reset links. | No |
 | `IDENTITY_EMERGENCY_REVOCATION_ENABLED` | Enable fail-closed JTI denylist enforcement. | No |
 | `IDENTITY_RATE_LOGIN_FAILURES` | Login failures allowed per 15-minute window; default `5`. | No |
 | `IDENTITY_RATE_REFRESH_PER_MINUTE` | Refresh attempts per session family per minute; default `30`. | No |

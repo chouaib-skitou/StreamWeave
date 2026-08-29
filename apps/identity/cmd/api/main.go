@@ -72,7 +72,7 @@ func run() error {
 	var mailer identityapp.Mailer
 	var mailbox identityapp.Mailbox
 	if cfg.MailerMode == "smtp" {
-		mailer = runtime.NewConfiguredSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.PublicAppURL, cfg.EmailVerificationPath, cfg.PasswordResetPath)
+		mailer = runtime.NewConfiguredSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.PublicAppURL)
 	} else {
 		localMailer := runtime.NewSimulatedMailer(logger)
 		mailer = localMailer

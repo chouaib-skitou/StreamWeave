@@ -6,8 +6,9 @@
 | `staging/` | Mailtrap Email Sandbox | Safe shared-environment inspection without delivery to customers |
 | `production/` | Mailtrap Email Sending | Verified-domain transactional delivery |
 
-All profiles use the same Identity image and Helm chart. Only the transport
-configuration changes. SMTP credentials are injected through local ignored
+All profiles use the shared Identity image and Helm chart. Only the transport
+configuration changes. The local Compose definition lives under `local/`; the
+root directory contains only shared deployment assets and the Helm chart. SMTP credentials are injected through local ignored
 `.env` files, CI/CD secret stores, or Kubernetes Secrets; they are never
 committed.
 
