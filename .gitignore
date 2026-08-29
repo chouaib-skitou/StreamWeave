@@ -1,4 +1,5 @@
 # Private local BMAD tooling and artifacts
+/AGENTS.md
 /.agents/
 /_bmad/
 /_bmad-output/
