@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://identity.ecommerce.local/contracts/events/commerce.security.audit.v1.json",
+  "title": "Commerce Security Audit Event v1",
+  "description": "A sanitized, versioned security fact emitted by Identity through its transactional outbox.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "aggregate_type",
+    "aggregate_id",
+    "correlation_id",
+    "occurred_at",
+    "producer",
+    "schema_version",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "pattern": "^evt_[A-Za-z0-9]+$" },
+    "event_type": { "const": "commerce.security.audit.v1" },
+    "aggregate_type": { "const": "security_audit" },
+    "aggregate_id": { "type": "string", "pattern": "^aud_[A-Za-z0-9]+$" },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "causation_id": { "type": ["string", "null"], "maxLength": 128 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "producer": { "const": "identity" },
+    "schema_version": { "const": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "outcome"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "register.succeeded",
+            "login.succeeded",
+            "login.failed",
+            "refresh.succeeded",
+            "refresh.failed",
+            "refresh.reuse_detected",
+            "logout.succeeded",
+            "logout_all.succeeded",
+            "session.revoked",
+            "password_reset.requested",
+            "password_reset.completed",
+            "email_verification.completed",
+            "role.assigned",
+            "role.removed",
+            "user.disabled",
+            "user.enabled",
+            "service_credential.rotated",
+            "service_token.issued"
+          ]
+        },
+        "outcome": { "type": "string", "enum": ["success", "failure", "denied"] },
+        "actor_id": { "type": ["string", "null"], "pattern": "^(usr|svc)_[A-Za-z0-9-]+$" },
+        "actor_type": { "type": ["string", "null"], "enum": ["user", "service", "system", null] },
+        "target_type": { "type": ["string", "null"], "maxLength": 64 },
+        "target_id": { "type": ["string", "null"], "maxLength": 128 },
+        "reason_code": { "type": ["string", "null"], "maxLength": 64 },
+        "role": { "type": ["string", "null"], "maxLength": 64 }
+      }
+    }
+  }
+}

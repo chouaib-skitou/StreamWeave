@@ -17,6 +17,8 @@ The repository is in the planning and architecture preparation phase. The produc
 - [Design](docs/design/README.md)
 - [Runbooks](docs/runbooks/README.md)
 - [Contracts](contracts/README.md)
+- [Identity Service PRD](docs/prd/PRD-001-identity-service.md)
+- [Identity Service architecture](docs/architecture/identity-service.md)
 
 Private BMAD tooling, agent instructions, planning scratch work, and the original blueprint stay local and are excluded by `.gitignore`.
 

@@ -1,0 +1,9 @@
+flowchart LR
+  Client[Human client] --> Gateway[Gateway]
+  Gateway --> Identity[Identity Service]
+  Identity --> IdentityDB[(identity_db)]
+  Identity --> Redis[(Disposable Redis)]
+  Identity --> Outbox[Identity Outbox Relay]
+  Outbox --> Kafka[(Kafka security audit topic)]
+  Identity -. public JWKS .-> Gateway
+  Identity -. safe audit events .-> Kafka

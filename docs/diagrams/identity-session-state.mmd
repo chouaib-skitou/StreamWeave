@@ -1,0 +1,8 @@
+stateDiagram-v2
+  [*] --> ACTIVE: login
+  ACTIVE --> ROTATED: successful refresh
+  ROTATED --> [*]
+  ACTIVE --> REVOKED: logout / logout-all / reset / incident
+  ROTATED --> REVOKED: reuse detected
+  REVOKED --> [*]
+  ACTIVE --> REVOKED: expiry or administrative revoke
