@@ -15,10 +15,17 @@ config:
   kafkaBrokers: identity-kafka:9092
   signingKeyPath: /var/run/secrets/identity/signing-key.pem
   signingKeyID: identity-v1
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: ""
+  smtpPort: 587
+  smtpFrom: identity@example.com
 secret:
   databaseURL: ""
   redisURL: ""
   signingKeyPEM: ""
+  smtpUsername: ""
+  smtpPassword: ""
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { cpu: 1000m, memory: 512Mi }

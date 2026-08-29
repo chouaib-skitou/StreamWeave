@@ -49,3 +49,32 @@ func TestValidateRejectsNonPostgresURL(t *testing.T) {
 		t.Fatal("expected non-PostgreSQL URL to be rejected")
 	}
 }
+
+func TestLoadAcceptsSMTPMailerConfiguration(t *testing.T) {
+	cfg, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity",
+		"IDENTITY_ENVIRONMENT":      "production",
+		"IDENTITY_SIGNING_KEY_PATH": "/var/run/secrets/identity/signing-key.pem",
+		"IDENTITY_MAILER_MODE":      "smtp",
+		"IDENTITY_SMTP_HOST":        "smtp.example.test",
+		"IDENTITY_SMTP_PORT":        "587",
+		"IDENTITY_SMTP_FROM":        "identity@example.test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MailerMode != "smtp" || cfg.SMTPPort != 587 {
+		t.Fatalf("unexpected SMTP configuration: %+v", cfg)
+	}
+}
+
+func TestValidateRejectsProductionSimulatedMailer(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity",
+		"IDENTITY_ENVIRONMENT":      "production",
+		"IDENTITY_SIGNING_KEY_PATH": "/var/run/secrets/identity/signing-key.pem",
+	})
+	if err == nil {
+		t.Fatal("expected production simulated mailer to be rejected")
+	}
+}

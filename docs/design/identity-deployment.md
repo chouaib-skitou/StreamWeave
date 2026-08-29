@@ -52,7 +52,7 @@ The commands are documentation targets until their Makefile, scripts, and workfl
 
 The Identity profile starts PostgreSQL, Redis, Kafka, the OpenTelemetry Collector, and Identity. PostgreSQL uses a dedicated database/user; no other service receives the Identity connection string. The profile includes health checks and waits for dependency readiness without treating Redis as durable state.
 
-The simulated mailer is deterministic and local-only. Compose logs are structured JSON and can be inspected without exposing credentials. The Identity container runs as a non-root user, uses a multi-stage build, and receives signing material through a local secret reference excluded from Git.
+Compose defaults to a deterministic in-memory mailer with `IDENTITY_TEST_MAILER_ENABLED=true` so Postman can retrieve local verification and reset tokens through the local-only test mailbox endpoint. The mode is never enabled in production. Production uses the SMTP mailer with `IDENTITY_SMTP_HOST`, `IDENTITY_SMTP_PORT`, `IDENTITY_SMTP_USERNAME`, `IDENTITY_SMTP_PASSWORD`, and `IDENTITY_SMTP_FROM`; credentials remain Secret-backed. Compose logs are structured JSON and can be inspected without exposing credentials. The Identity container runs as a non-root user, uses a multi-stage build, and receives signing material through a local secret reference excluded from Git.
 
 ## Kubernetes and Helm Profile
 
@@ -68,7 +68,7 @@ The Helm deployment must provide:
 - PodDisruptionBudget and a local one-replica-safe profile;
 - migration job or controlled migration hook with expand/migrate/contract compatibility;
 - graceful termination period long enough to finish current HTTP work and flush telemetry;
-- explicit dependency egress only to PostgreSQL, Redis, Kafka, OTLP, and the simulated mailer.
+- explicit dependency egress only to PostgreSQL, Redis, Kafka, OTLP, and the configured SMTP relay.
 
 Readiness must fail when Identity cannot perform its responsibility, including missing signing configuration or PostgreSQL. Redis degradation is surfaced separately and follows the fail-closed revocation policy.
 

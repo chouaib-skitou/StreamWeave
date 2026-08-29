@@ -14,7 +14,7 @@ The blueprint requires hashed one-time tokens and simulated mail delivery. Reset
 - [ ] Given a valid reset token, when a new password is submitted, then the password hash changes and active session families are revoked.
 - [ ] Given an expired, consumed, or unknown token, when confirmation is attempted, then generic unauthorized is returned and no state changes.
 - [ ] Given a valid verification token, when confirmation is submitted, then only the owning user's verification state changes.
-- [ ] Given mailer failure, when a token is created, then delivery retries without exposing the token through logs or API responses.
+- [ ] Given mailer failure, when a token is created, then delivery retries without exposing the token through logs or public API responses.
 
 ## API changes
 

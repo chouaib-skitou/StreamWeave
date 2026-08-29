@@ -31,11 +31,14 @@ func (errorLimiter) Allow(context.Context, string) (bool, error) {
 
 type recordingMailer struct{ sent bool }
 
-func (m *recordingMailer) Send(context.Context, string, string) error { m.sent = true; return nil }
+func (m *recordingMailer) Send(context.Context, string, string, string) error {
+	m.sent = true
+	return nil
+}
 
 type failingMailer struct{}
 
-func (failingMailer) Send(context.Context, string, string) error {
+func (failingMailer) Send(context.Context, string, string, string) error {
 	return errors.New("mailer unavailable")
 }
 

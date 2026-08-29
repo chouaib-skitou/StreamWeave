@@ -64,6 +64,36 @@ paths:
           content:
             text/plain:
               schema: { type: string }
+  /_test/mailbox/latest:
+    get:
+      tags: [Operations]
+      summary: Read the latest local test email token
+      description: Local development only. This route is registered only when IDENTITY_TEST_MAILER_ENABLED=true and must never be enabled in production.
+      operationId: getLatestTestMailboxMessage
+      x-local-only: true
+      security: []
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [email-verification, password-reset] }
+        - name: recipient
+          in: query
+          required: true
+          schema: { type: string, format: email }
+      responses:
+        '200':
+          description: Latest one-time token captured by the local simulated mailer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind, recipient, token]
+                properties:
+                  kind: { type: string }
+                  recipient: { type: string, format: email }
+                  token: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
   /.well-known/register:
     post:
       tags: [Authentication]

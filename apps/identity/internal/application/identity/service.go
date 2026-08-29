@@ -101,7 +101,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domain.Use
 		return s.recordAudit(ctx, tx, auditInput{Action: "register.succeeded", Outcome: "success", TargetID: userRef(user.ID), CorrelationID: "registration", At: now})
 	})
 	if err == nil && s.mailer != nil {
-		err = s.mailer.Send(ctx, "email-verification", verificationToken)
+		err = s.mailer.Send(ctx, "email-verification", user.Email, verificationToken)
 	}
 	return user, err
 }
@@ -310,7 +310,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, correlationID
 		return s.recordAudit(ctx, tx, auditInput{Action: "password_reset.requested", Outcome: "success", TargetID: userRef(user.ID), CorrelationID: correlationID, At: now})
 	})
 	if err == nil && s.mailer != nil {
-		err = s.mailer.Send(ctx, "password-reset", token)
+		err = s.mailer.Send(ctx, "password-reset", user.Email, token)
 	}
 	return err
 }

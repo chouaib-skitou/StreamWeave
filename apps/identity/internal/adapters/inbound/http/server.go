@@ -26,15 +26,18 @@ type Server struct {
 	mux              *http.ServeMux
 	demoRegistration bool
 	humanAudience    string
+	mailbox          identityapp.Mailbox
+	testMailer       bool
 }
 
 type RevocationChecker interface {
 	IsRevoked(context.Context, string) (bool, error)
 }
 
-func NewApplicationServer(addr, metricsPath string, readinessTimeout time.Duration, healthService *health.Service, logger *slog.Logger, service *identityapp.Service, signer *identitycrypto.Signer, revocations RevocationChecker, humanAudience string, demoRegistration bool) *Server {
+func NewApplicationServer(addr, metricsPath string, readinessTimeout time.Duration, healthService *health.Service, logger *slog.Logger, service *identityapp.Service, signer *identitycrypto.Signer, revocations RevocationChecker, humanAudience string, demoRegistration, testMailer bool, mailbox identityapp.Mailbox) *Server {
 	server := NewServer(addr, metricsPath, readinessTimeout, healthService, logger)
 	server.identity, server.signer, server.revocations, server.humanAudience, server.demoRegistration = service, signer, revocations, humanAudience, demoRegistration
+	server.testMailer, server.mailbox = testMailer, mailbox
 	server.registerIdentityRoutes()
 	return server
 }

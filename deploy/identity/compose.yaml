@@ -36,6 +36,8 @@ services:
       IDENTITY_DEMO_REGISTRATION_ENABLED: 'true'
       IDENTITY_RUN_MIGRATIONS: 'true'
       IDENTITY_LOG_LEVEL: info
+      IDENTITY_MAILER_MODE: simulated
+      IDENTITY_TEST_MAILER_ENABLED: 'true'
     depends_on:
       identity-postgres: { condition: service_healthy }
       identity-redis: { condition: service_healthy }

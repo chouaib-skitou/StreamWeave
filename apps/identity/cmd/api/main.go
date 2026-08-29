@@ -69,7 +69,18 @@ func run() error {
 	}
 	store := postgres.NewStore(database)
 	limiter := identityredis.NewRateLimiter(cache, cfg.RateLoginFailures, cfg.RateRefreshMinute, cfg.RateResetHour, cfg.RateServiceMinute)
-	identityService, err := identityapp.NewService(identityapp.Options{Store: store, Passwords: identitycrypto.NewPasswordHasher(), Tokens: identitycrypto.NewTokenServiceForSigner(signer), Clock: runtime.Clock{}, Limiter: limiter, Revocations: cache, Mailer: runtime.NewSimulatedMailer(logger), HumanAudience: cfg.HumanAudience, MachineAudience: cfg.MachineAudience})
+	var mailer identityapp.Mailer
+	var mailbox identityapp.Mailbox
+	if cfg.MailerMode == "smtp" {
+		mailer = runtime.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
+	} else {
+		localMailer := runtime.NewSimulatedMailer(logger)
+		mailer = localMailer
+		if cfg.TestMailerEnabled {
+			mailbox = localMailer
+		}
+	}
+	identityService, err := identityapp.NewService(identityapp.Options{Store: store, Passwords: identitycrypto.NewPasswordHasher(), Tokens: identitycrypto.NewTokenServiceForSigner(signer), Clock: runtime.Clock{}, Limiter: limiter, Revocations: cache, Mailer: mailer, HumanAudience: cfg.HumanAudience, MachineAudience: cfg.MachineAudience})
 	if err != nil {
 		return err
 	}
@@ -84,7 +95,7 @@ func run() error {
 			logger.Error("identity outbox relay stopped", "error", relayErr)
 		}
 	}()
-	server := httpadapter.NewApplicationServer(cfg.HTTPAddr, cfg.MetricsPath, cfg.ReadinessTimeout, healthService, logger, identityService, signer, cache, cfg.HumanAudience, cfg.DemoRegistration)
+	server := httpadapter.NewApplicationServer(cfg.HTTPAddr, cfg.MetricsPath, cfg.ReadinessTimeout, healthService, logger, identityService, signer, cache, cfg.HumanAudience, cfg.DemoRegistration, cfg.TestMailerEnabled, mailbox)
 	serverErrors := make(chan error, 1)
 	go func() { serverErrors <- server.Start() }()
 

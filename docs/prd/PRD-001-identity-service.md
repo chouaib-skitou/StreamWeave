@@ -32,7 +32,7 @@ The service must remain correct when clients retry, refresh tokens concurrently,
 
 - Public production self-signup without anti-abuse and email-delivery operations.
 - External identity providers, social login, SAML, and OIDC federation.
-- Real email delivery; the verification and reset mailer is simulated.
+- External email-provider operations beyond SMTP configuration and delivery templates.
 
 ### 2.3 Key User Journeys
 
@@ -83,7 +83,7 @@ The system shall verify passwords using Argon2id and return one generic invalid-
 
 #### FR-3: Password reset and email verification
 
-The system shall support hashed, single-use, expiring password-reset and email-verification tokens with simulated delivery.
+The system shall support hashed, single-use, expiring password-reset and email-verification tokens with configurable SMTP delivery. Development Compose shall provide an explicitly enabled in-memory mailbox for manual testing without exposing tokens in logs or the public API.
 
 **Consequences:**
 

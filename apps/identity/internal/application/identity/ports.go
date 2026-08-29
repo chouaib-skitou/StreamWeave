@@ -105,5 +105,11 @@ type Revocations interface {
 }
 
 type Mailer interface {
-	Send(context.Context, string, string) error
+	Send(context.Context, string, string, string) error
+}
+
+// Mailbox exposes local-only delivery inspection for manual development tests.
+// Production mailers must not implement this port.
+type Mailbox interface {
+	Latest(context.Context, string, string) (string, error)
 }

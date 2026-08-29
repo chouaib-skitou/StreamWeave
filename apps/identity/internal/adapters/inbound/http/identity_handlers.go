@@ -24,6 +24,9 @@ func (s *Server) registerIdentityRoutes() {
 	mux := s.mux
 	mux.HandleFunc("POST /.well-known/register", s.register)
 	mux.HandleFunc("GET /.well-known/jwks.json", s.jwks)
+	if s.testMailer && s.mailbox != nil {
+		mux.HandleFunc("GET /_test/mailbox/latest", s.latestTestMail)
+	}
 	mux.HandleFunc("POST /v1/auth/login", s.login)
 	mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	mux.HandleFunc("POST /v1/auth/password-reset/request", s.resetRequest)
@@ -315,6 +318,21 @@ func (s *Server) serviceToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"access_token": result.AccessToken, "token_type": "Bearer", "expires_in": result.ExpiresIn})
 }
 func (s *Server) jwks(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, s.signer.JWKS()) }
+
+func (s *Server) latestTestMail(w http.ResponseWriter, r *http.Request) {
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	recipient := strings.TrimSpace(r.URL.Query().Get("recipient"))
+	if kind == "" || recipient == "" {
+		problem(w, http.StatusBadRequest, "bad_request", "kind and recipient are required")
+		return
+	}
+	token, err := s.mailbox.Latest(r.Context(), kind, recipient)
+	if err != nil {
+		problem(w, http.StatusNotFound, "not_found", "Mail not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"kind": kind, "recipient": recipient, "token": token})
+}
 
 type tokenResponse struct {
 	AccessToken      string `json:"access_token"`

@@ -40,6 +40,13 @@ type Config struct {
 	RedisURL            string
 	KafkaBrokers        string
 	OTelEndpoint        string
+	MailerMode          string
+	TestMailerEnabled   bool
+	SMTPHost            string
+	SMTPPort            int
+	SMTPUsername        string
+	SMTPPassword        string
+	SMTPFrom            string
 	RateLoginFailures   int
 	RateRefreshMinute   int
 	RateResetHour       int
@@ -67,6 +74,13 @@ func Load(source Source) (Config, error) {
 		RedisURL:            value(source, "IDENTITY_REDIS_URL", "redis://localhost:6379/0"),
 		KafkaBrokers:        value(source, "IDENTITY_KAFKA_BROKERS", "localhost:9092"),
 		OTelEndpoint:        value(source, "IDENTITY_OTEL_ENDPOINT", ""),
+		MailerMode:          value(source, "IDENTITY_MAILER_MODE", "simulated"),
+		TestMailerEnabled:   boolean(source, "IDENTITY_TEST_MAILER_ENABLED", false),
+		SMTPHost:            value(source, "IDENTITY_SMTP_HOST", ""),
+		SMTPPort:            integer(source, "IDENTITY_SMTP_PORT", 1025),
+		SMTPUsername:        value(source, "IDENTITY_SMTP_USERNAME", ""),
+		SMTPPassword:        value(source, "IDENTITY_SMTP_PASSWORD", ""),
+		SMTPFrom:            value(source, "IDENTITY_SMTP_FROM", "identity@localhost"),
 		RateLoginFailures:   integer(source, "IDENTITY_RATE_LOGIN_FAILURES", 5),
 		RateRefreshMinute:   integer(source, "IDENTITY_RATE_REFRESH_PER_MINUTE", 30),
 		RateResetHour:       integer(source, "IDENTITY_RATE_RESET_PER_HOUR", 3),
@@ -103,6 +117,18 @@ func (c Config) Validate() error {
 	}
 	if c.Environment == "production" && strings.TrimSpace(c.SigningKeyPath) == "" {
 		return errors.New("IDENTITY_SIGNING_KEY_PATH is required in production")
+	}
+	if c.MailerMode != "simulated" && c.MailerMode != "smtp" {
+		return errors.New("IDENTITY_MAILER_MODE must be simulated or smtp")
+	}
+	if c.TestMailerEnabled && c.MailerMode != "simulated" {
+		return errors.New("IDENTITY_TEST_MAILER_ENABLED requires simulated mailer mode")
+	}
+	if c.Environment == "production" && c.MailerMode != "smtp" {
+		return errors.New("IDENTITY_MAILER_MODE must be smtp in production")
+	}
+	if c.MailerMode == "smtp" && (strings.TrimSpace(c.SMTPHost) == "" || c.SMTPPort <= 0 || strings.TrimSpace(c.SMTPFrom) == "") {
+		return errors.New("SMTP host, port, and from are required when SMTP mailer is enabled")
 	}
 	if strings.TrimSpace(c.Issuer) == "" || strings.TrimSpace(c.HumanAudience) == "" || strings.TrimSpace(c.MachineAudience) == "" || strings.TrimSpace(c.SigningKeyID) == "" {
 		return errors.New("Identity issuer, audiences, and signing key ID are required")

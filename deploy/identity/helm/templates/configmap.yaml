@@ -11,3 +11,8 @@ data:
   IDENTITY_KAFKA_BROKERS: {{ .Values.config.kafkaBrokers | quote }}
   IDENTITY_SIGNING_KEY_PATH: {{ .Values.config.signingKeyPath | quote }}
   IDENTITY_SIGNING_KEY_ID: {{ .Values.config.signingKeyID | quote }}
+  IDENTITY_MAILER_MODE: {{ .Values.config.mailerMode | quote }}
+  IDENTITY_TEST_MAILER_ENABLED: {{ .Values.config.testMailerEnabled | quote }}
+  IDENTITY_SMTP_HOST: {{ .Values.config.smtpHost | quote }}
+  IDENTITY_SMTP_PORT: {{ .Values.config.smtpPort | quote }}
+  IDENTITY_SMTP_FROM: {{ .Values.config.smtpFrom | quote }}

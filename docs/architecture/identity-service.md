@@ -181,7 +181,7 @@ Gateway and services validate the signature using cached JWKS, issuer, audience,
 
 ### Password reset and email verification
 
-Reset and verification requests create one-time hashed tokens with bounded expiry. The simulated mailer receives only a safe delivery command. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login.
+Reset and verification requests create one-time hashed tokens with bounded expiry. The mailer receives only a safe delivery command containing the recipient and one-time token. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login. Development Compose uses an in-memory simulated mailbox that is exposed only through the local-only `/_test/mailbox/latest` endpoint when explicitly enabled; production requires the SMTP mailer and never exposes that endpoint.
 
 ### Service-token exchange
 
@@ -225,7 +225,7 @@ No transaction spans another service database.
 | Concurrent refresh | Serialize the token-family transition so only one request succeeds. |
 | Rotated refresh-token reuse | Revoke the entire family and emit an audit event. |
 | Key provider unavailable | Fail readiness and do not issue new tokens; serve only a validated cached public-key snapshot for verification, otherwise return dependency-unavailable. |
-| Simulated mailer unavailable | Persist token state and retry delivery; do not expose the token through the API. |
+| Mailer unavailable | Persist token state and retry delivery; do not expose the token through the public API. |
 
 ## Observability
 
