@@ -60,4 +60,3 @@ jobs:
             - [ ] Confirm no development-only changes are overwritten.
 
             The `dev` branch remains protected and must be updated through this reviewed pull request.
-          labels: release, automation
