@@ -25,7 +25,7 @@ vX.Y.Z tag and GitHub Release are published
 VERSION and CHANGELOG.md are synchronized directly to dev
 ```
 
-The release commit and the synchronization commit are machine-owned exceptions to the human PR flow. GitHub Actions is the only actor allowed to bypass the protected-branch rules for these two operations.
+The release commit and the synchronization commit are machine-owned exceptions to the human PR flow. The workflow authenticates with the maintainer's `RELEASE_TOKEN` repository secret. This is required because GitHub does not allow the built-in GitHub Actions integration to bypass rulesets on a personal repository.
 
 ## Version source
 
@@ -78,4 +78,4 @@ Never delete or rewrite a published tag. Correct a release with a new Convention
 - Version writer: `scripts/update-version.cjs`;
 - CI-only dependencies: `package.json` and `package-lock.json`.
 
-Release automation is direct by design. Branch protections still require pull requests for human changes; only the GitHub Actions integration bypasses the rules for the two release metadata commits.
+Release automation is direct by design. Branch protections still require pull requests for normal contributors; the sole repository administrator is exempted so the workflow's maintainer token can publish the two release metadata commits. Force-pushes and branch deletion remain disabled.
