@@ -1,0 +1,8 @@
+# Private local BMAD tooling and artifacts
+/.agents/
+/_bmad/
+/_bmad-output/
+/docs/bmad/
+
+# Private project blueprint
+/01_event_driven_ecommerce_order_management_platform.md
