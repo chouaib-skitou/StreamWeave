@@ -18,5 +18,14 @@
 kubeconfig*
 /secrets/
 
+# Local test coverage artifacts
+/coverage
+/identity
+/foo
+/foo-bar
+/*-coverage.out
+/$coverageProfile
+/$profile
+
 # Private project blueprint
 /01_event_driven_ecommerce_order_management_platform.md

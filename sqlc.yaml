@@ -1,0 +1,13 @@
+version: '2'
+sql:
+  - engine: 'postgresql'
+    schema: 'database/identity/migrations'
+    queries: 'database/identity/queries'
+    gen:
+      go:
+        package: 'generated'
+        out: 'apps/identity/internal/adapters/outbound/postgres/generated'
+        sql_package: 'database/sql'
+        emit_json_tags: true
+        emit_interface: true
+        emit_empty_slices: true

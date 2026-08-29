@@ -1,0 +1,51 @@
+package config
+
+import (
+	"testing"
+	"time"
+)
+
+type mapSource map[string]string
+
+func (m mapSource) Lookup(key string) (string, bool) {
+	v, ok := m[key]
+	return v, ok
+}
+
+func TestLoadAppliesSafeDefaults(t *testing.T) {
+	cfg, err := Load(mapSource{"IDENTITY_DATABASE_URL": "postgres://identity:secret@localhost/identity"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.HTTPAddr != ":8080" || cfg.MetricsPath != "/metrics" || cfg.ShutdownTimeout != 10*time.Second {
+		t.Fatalf("unexpected defaults: %+v", cfg)
+	}
+}
+
+func TestLoadRejectsProductionDemoRegistration(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":              "postgres://identity:secret@localhost/identity",
+		"IDENTITY_ENVIRONMENT":               "production",
+		"IDENTITY_DEMO_REGISTRATION_ENABLED": "true",
+	})
+	if err == nil {
+		t.Fatal("expected production demo registration to be rejected")
+	}
+}
+
+func TestLoadRejectsMalformedDuration(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity",
+		"IDENTITY_SHUTDOWN_TIMEOUT": "invalid",
+	})
+	if err == nil {
+		t.Fatal("expected malformed duration to be rejected")
+	}
+}
+
+func TestValidateRejectsNonPostgresURL(t *testing.T) {
+	cfg := Config{HTTPAddr: ":8080", DatabaseURL: "redis://localhost", MigrationDir: "migrations", ShutdownTimeout: time.Second, ReadinessTimeout: time.Second, MetricsPath: "/metrics"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected non-PostgreSQL URL to be rejected")
+	}
+}

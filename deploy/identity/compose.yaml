@@ -1,0 +1,52 @@
+services:
+  identity-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in .env}
+    volumes: [identity-postgres-data:/var/lib/postgresql/data]
+    healthcheck: { test: [CMD-SHELL, 'pg_isready -U identity -d identity'], interval: 5s, timeout: 5s, retries: 10 }
+  identity-redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, no]
+    healthcheck: { test: [CMD, redis-cli, ping], interval: 5s, timeout: 3s, retries: 10 }
+  identity-kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://identity-kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@identity-kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+  identity:
+    build: { context: ../.., dockerfile: deploy/identity/Dockerfile }
+    environment:
+      IDENTITY_HTTP_ADDR: :8080
+      IDENTITY_ENVIRONMENT: development
+      IDENTITY_DATABASE_URL: postgres://identity:${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in .env}@identity-postgres:5432/identity?sslmode=disable
+      IDENTITY_REDIS_URL: redis://identity-redis:6379/0
+      IDENTITY_KAFKA_BROKERS: identity-kafka:9092
+      IDENTITY_DEMO_REGISTRATION_ENABLED: 'true'
+      IDENTITY_RUN_MIGRATIONS: 'true'
+      IDENTITY_LOG_LEVEL: info
+    depends_on:
+      identity-postgres: { condition: service_healthy }
+      identity-redis: { condition: service_healthy }
+      identity-kafka: { condition: service_started }
+    ports: ['8080:8080']
+    read_only: true
+    user: 'identity'
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:8080/health/ready], interval: 10s, timeout: 3s, retries: 5 }
+  identity-otel:
+    image: otel/opentelemetry-collector-contrib:0.117.0
+    command: [--config=/etc/otelcol/config.yaml]
+    volumes: [./otel-config.yaml:/etc/otelcol/config.yaml:ro]
+volumes:
+  identity-postgres-data:

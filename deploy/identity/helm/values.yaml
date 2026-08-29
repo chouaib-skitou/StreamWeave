@@ -1,0 +1,24 @@
+image:
+  repository: identity
+  tag: local
+  pullPolicy: IfNotPresent
+service:
+  port: 8080
+config:
+  issuer: identity.local
+  humanAudience: platform-api
+  machineAudience: platform-internal
+  logLevel: info
+  demoRegistration: false
+  databaseURL: postgres://identity@identity-postgres:5432/identity?sslmode=disable
+  redisURL: redis://identity-redis:6379/0
+  kafkaBrokers: identity-kafka:9092
+  signingKeyPath: /var/run/secrets/identity/signing-key.pem
+  signingKeyID: identity-v1
+secret:
+  databaseURL: ""
+  redisURL: ""
+  signingKeyPEM: ""
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 1000m, memory: 512Mi }

@@ -15,7 +15,7 @@ The Identity Service owns human users, credentials, sessions, roles, refresh-tok
 
 ## Implementation status
 
-The service is in the documentation and contract phase. Code, migrations, container files, Make targets, Compose profile, Helm chart, tests, and operational dashboards are delivered by the Identity stories only after the documentation gate is accepted.
+The production-like service implementation is available on the Identity feature branch. It includes the Go application, sqlc-generated PostgreSQL adapter, transactional outbox relay, Redis rate limiting and revocation, Ed25519/JWKS, Docker Compose, Helm deployment, health endpoints, metrics, and automated verification targets.
 
 ## Security boundary
 

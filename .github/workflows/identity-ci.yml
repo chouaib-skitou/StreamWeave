@@ -1,0 +1,46 @@
+name: Identity CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/identity/**'
+      - 'database/identity/**'
+      - 'contracts/**'
+      - 'deploy/identity/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Identity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify generated database adapter
+        run: go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate && git diff --exit-code -- apps/identity/internal/adapters/outbound/postgres/generated
+      - name: Run tests
+        run: go test ./... -race -coverprofile=coverage.out
+      - name: Enforce Identity coverage gate
+        shell: bash
+        run: |
+          go test ./apps/identity/internal/application/identity -coverprofile=identity-coverage.out
+          coverage="$(go tool cover -func=identity-coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')"
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 85.0) { exit 1 } }'
+          echo "Identity application coverage: ${coverage}%"
+      - name: Run vet
+        run: go vet ./...
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l apps/identity)"
+      - name: Build service
+        run: go build -trimpath -o /tmp/identity ./apps/identity/cmd/api

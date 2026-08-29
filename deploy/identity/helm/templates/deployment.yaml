@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "identity.fullname" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "identity.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "identity.name" . }}
+    spec:
+      serviceAccountName: {{ include "identity.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: identity
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef: { name: {{ include "identity.fullname" . }}-config }
+            - secretRef: { name: {{ include "identity.fullname" . }}-secret }
+          env:
+            - name: IDENTITY_HTTP_ADDR
+              value: ":8080"
+            - name: IDENTITY_ENVIRONMENT
+              value: production
+          volumeMounts:
+            - name: signing-key
+              mountPath: /var/run/secrets/identity
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe: { httpGet: { path: /health/startup, port: http }, failureThreshold: 30, periodSeconds: 2 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 10 }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 5 }
+      volumes:
+        - name: signing-key
+          secret:
+            secretName: {{ include "identity.fullname" . }}-secret
+            items:
+              - key: signing-key.pem
+                path: signing-key.pem
