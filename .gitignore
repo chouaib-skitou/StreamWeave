@@ -6,5 +6,8 @@
 /docs/bmad/
 /docs/bmad-v6-guide.md
 
+# Local release tooling dependencies
+/node_modules/
+
 # Private project blueprint
 /01_event_driven_ecommerce_order_management_platform.md
