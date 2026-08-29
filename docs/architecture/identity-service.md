@@ -33,7 +33,7 @@ Domain entities, value objects, and policies
           ↓
 Application-owned ports
           ↓
-PostgreSQL, Redis, crypto, telemetry, and simulated mail adapters
+PostgreSQL, Redis, crypto, telemetry, and SMTP mail adapters
 ```
 
 The domain has no dependency on HTTP, PostgreSQL, Redis, Kafka, Kubernetes, OpenTelemetry, or JWT libraries. JWT and persistence details live in adapters behind application ports.
@@ -181,7 +181,7 @@ Gateway and services validate the signature using cached JWKS, issuer, audience,
 
 ### Password reset and email verification
 
-Reset and verification requests create one-time hashed tokens with bounded expiry. Newly registered users remain `PENDING_VERIFICATION` and cannot log in until the verification token is consumed. The mailer receives only a safe delivery command containing the recipient and one-time token. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login. Development Compose uses an in-memory simulated mailbox that is exposed only through the local-only `/_test/mailbox/latest` endpoint when explicitly enabled; production requires the SMTP mailer and never exposes that endpoint.
+Reset and verification requests create one-time hashed tokens with bounded expiry. Newly registered users remain `PENDING_VERIFICATION` and cannot log in until the verification token is consumed. The mailer receives only a safe delivery command containing the recipient and one-time token. The API response is generic for reset requests. Password reset invalidates active session families and requires a new login. Local Compose sends real multipart emails to MailHog; staging and production use configured SMTP relays. The in-memory mailbox endpoint is reserved for isolated local tests and is never enabled in production.
 
 ### Service-token exchange
 
