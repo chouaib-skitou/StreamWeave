@@ -1,22 +1,10 @@
-# Issue Template
-
-## Title
-
-Issue titles use the same English Conventional Commit convention as commits:
-
-```text
-<type>(<scope>): <imperative description>
-```
-
-Allowed types include `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `security`. Use a short kebab-case scope such as `orders`, `contracts`, `database`, or `observability`.
-
-Examples:
-
-```text
-feat(orders): Add customer cancellation flow
-fix(inventory): Make reservation release idempotent
-docs(architecture): Explain Saga compensation policy
-```
+---
+name: Feature request
+about: Propose a user or system capability
+title: "feat(scope): Add "
+labels: enhancement
+assignees: ''
+---
 
 ## Context
 
@@ -56,6 +44,6 @@ authorization, sensitive data, and rollback concerns where relevant. -->
 
 <!-- Explicitly state what this issue will not implement. -->
 
-## Notes and references
+## References
 
 <!-- Link the brief, PRD, story, ADR, diagram, runbook, or related issue. -->
