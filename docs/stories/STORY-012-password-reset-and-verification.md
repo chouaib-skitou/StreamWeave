@@ -2,11 +2,11 @@
 
 ## User / system outcome
 
-As a user, I can complete a simulated password reset or email verification without the platform exposing account existence or token values.
+As a user, I can complete a password reset or email verification through a secure email link without the platform exposing account existence or token values.
 
 ## Context
 
-The blueprint requires hashed one-time tokens and simulated mail delivery. Reset must revoke active sessions.
+The blueprint requires hashed one-time tokens and SMTP delivery. Reset must revoke active sessions.
 
 ## Acceptance criteria
 
@@ -14,7 +14,7 @@ The blueprint requires hashed one-time tokens and simulated mail delivery. Reset
 - [ ] Given a valid reset token, when a new password is submitted, then the password hash changes and active session families are revoked.
 - [ ] Given an expired, consumed, or unknown token, when confirmation is attempted, then generic unauthorized is returned and no state changes.
 - [ ] Given a valid verification token, when confirmation is submitted, then only the owning user's verification state changes.
-- [ ] Given mailer failure, when a token is created, then delivery retries without exposing the token through logs or public API responses.
+- [ ] Given SMTP failure, when a token is created, then delivery failure is observable without exposing the token through logs or public API responses.
 
 ## API changes
 
@@ -30,7 +30,7 @@ Implement one-time hashed token tables and expiry/consumption indexes.
 
 ## Failure cases
 
-Enumeration attempts, token replay, expiry, mailer outage, database outage, password policy failure, and session-revocation failure.
+Enumeration attempts, token replay, expiry, SMTP outage, database outage, password policy failure, and session-revocation failure.
 
 ## Observability
 
@@ -42,15 +42,15 @@ Use strong password policy, Argon2id, generic responses, single-use tokens, and 
 
 ## Test plan
 
-API, token lifecycle, expiry, replay, session revocation, mailer retry, and secret-scanning tests.
+API, token lifecycle, expiry, replay, session revocation, SMTP delivery, and secret-scanning tests.
 
 ## Out of scope
 
-Real email delivery, external identity federation, and passwordless authentication.
+External identity federation and passwordless authentication.
 
 ## Dependencies
 
-STORY-006, STORY-007, STORY-009, the token data model, and the simulated mailer port.
+STORY-006, STORY-007, STORY-009, the token data model, and the SMTP mailer port.
 
 ## Validation evidence
 

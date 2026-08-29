@@ -1,0 +1,12 @@
+config:
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: sandbox.smtp.mailtrap.io
+  smtpPort: 2525
+  smtpFrom: identity-staging@example.test
+  publicAppURL: https://staging.example.test
+  emailVerificationPath: /verify-email
+  passwordResetPath: /reset-password
+secret:
+  smtpUsername: ""
+  smtpPassword: ""

@@ -16,3 +16,6 @@ data:
   IDENTITY_SMTP_HOST: {{ .Values.config.smtpHost | quote }}
   IDENTITY_SMTP_PORT: {{ .Values.config.smtpPort | quote }}
   IDENTITY_SMTP_FROM: {{ .Values.config.smtpFrom | quote }}
+  IDENTITY_PUBLIC_APP_URL: {{ .Values.config.publicAppURL | quote }}
+  IDENTITY_EMAIL_VERIFICATION_PATH: {{ .Values.config.emailVerificationPath | quote }}
+  IDENTITY_PASSWORD_RESET_PATH: {{ .Values.config.passwordResetPath | quote }}

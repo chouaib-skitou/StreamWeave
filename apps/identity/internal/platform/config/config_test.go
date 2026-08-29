@@ -58,6 +58,8 @@ func TestLoadAcceptsSMTPMailerConfiguration(t *testing.T) {
 		"IDENTITY_MAILER_MODE":      "smtp",
 		"IDENTITY_SMTP_HOST":        "smtp.example.test",
 		"IDENTITY_SMTP_PORT":        "587",
+		"IDENTITY_SMTP_USERNAME":    "api",
+		"IDENTITY_SMTP_PASSWORD":    "secret",
 		"IDENTITY_SMTP_FROM":        "identity@example.test",
 	})
 	if err != nil {

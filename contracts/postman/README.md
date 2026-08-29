@@ -8,8 +8,8 @@ Import both files in this directory:
 Start the local profile from the repository root:
 
 ```powershell
-Copy-Item deploy/identity/.env.example deploy/identity/.env
-docker compose --env-file deploy/identity/.env -f deploy/identity/compose.yaml up --build
+Copy-Item deploy/identity/local/.env.example deploy/identity/local/.env
+docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml up --build
 ```
 
 Run the requests in this order for the complete human-user flow:
@@ -36,8 +36,7 @@ The user/RBAC requests require an access token containing
 token request requires an active service principal and credential seeded in the
 Identity database; its variables are placeholders by design.
 
-The local test mailbox is deliberately not a production feature. It is enabled
-only by `IDENTITY_TEST_MAILER_ENABLED=true`, stores tokens in process memory,
-and is not registered when the flag is disabled. Production uses the SMTP
-configuration documented in `deploy/identity/.env.example` and the deployment
-design.
+Local uses MailHog as a real SMTP server. Open `http://localhost:8025` to
+inspect the rendered HTML and text versions. Staging and production use the
+SMTP configurations documented in `deploy/identity/staging` and
+`deploy/identity/production`.

@@ -20,6 +20,14 @@ Required configuration names:
 | `IDENTITY_DEMO_REGISTRATION_ENABLED` | Demo-registration feature flag; false in production. | No |
 | `IDENTITY_OTEL_ENDPOINT` | OTLP collector endpoint. | No |
 | `IDENTITY_LOG_LEVEL` | Structured log level. | No |
+| `IDENTITY_MAILER_MODE` | `smtp` for local MailHog, staging Mailtrap Sandbox, and production Mailtrap Email Sending. | No |
+| `IDENTITY_TEST_MAILER_ENABLED` | Enables the in-memory mailbox only for isolated local tests; false for the MailHog profile and all shared environments. | No |
+| `IDENTITY_SMTP_HOST` / `IDENTITY_SMTP_PORT` | SMTP relay endpoint. | No |
+| `IDENTITY_SMTP_USERNAME` / `IDENTITY_SMTP_PASSWORD` | SMTP credentials. | Username no; password yes |
+| `IDENTITY_SMTP_FROM` | Verified sender address. | No |
+| `IDENTITY_PUBLIC_APP_URL` | Base URL used in verification and reset links. | No |
+| `IDENTITY_EMAIL_VERIFICATION_PATH` | Frontend route for email verification links. | No |
+| `IDENTITY_PASSWORD_RESET_PATH` | Frontend route for password-reset links. | No |
 | `IDENTITY_EMERGENCY_REVOCATION_ENABLED` | Enable fail-closed JTI denylist enforcement. | No |
 | `IDENTITY_RATE_LOGIN_FAILURES` | Login failures allowed per 15-minute window; default `5`. | No |
 | `IDENTITY_RATE_REFRESH_PER_MINUTE` | Refresh attempts per session family per minute; default `30`. | No |
@@ -52,7 +60,7 @@ The commands are documentation targets until their Makefile, scripts, and workfl
 
 The Identity profile starts PostgreSQL, Redis, Kafka, the OpenTelemetry Collector, and Identity. PostgreSQL uses a dedicated database/user; no other service receives the Identity connection string. The profile includes health checks and waits for dependency readiness without treating Redis as durable state.
 
-Compose defaults to a deterministic in-memory mailer with `IDENTITY_TEST_MAILER_ENABLED=true` so Postman can retrieve local verification and reset tokens through the local-only test mailbox endpoint. The mode is never enabled in production. Production uses the SMTP mailer with `IDENTITY_SMTP_HOST`, `IDENTITY_SMTP_PORT`, `IDENTITY_SMTP_USERNAME`, `IDENTITY_SMTP_PASSWORD`, and `IDENTITY_SMTP_FROM`; credentials remain Secret-backed. Compose logs are structured JSON and can be inspected without exposing credentials. The Identity container runs as a non-root user, uses a multi-stage build, and receives signing material through a local secret reference excluded from Git.
+Local Compose uses MailHog as a real SMTP server so verification and reset emails can be inspected in the MailHog UI. An in-memory simulated mailbox remains available only for isolated tests when `IDENTITY_TEST_MAILER_ENABLED=true`; that mode is never enabled in shared environments or production. Staging uses Mailtrap Email Sandbox, and production uses Mailtrap Email Sending with `IDENTITY_SMTP_HOST`, `IDENTITY_SMTP_PORT`, `IDENTITY_SMTP_USERNAME`, `IDENTITY_SMTP_PASSWORD`, and `IDENTITY_SMTP_FROM`; credentials remain Secret-backed. Compose logs are structured JSON and can be inspected without exposing credentials. The Identity container runs as a non-root user, uses a multi-stage build, and receives signing material through a local secret reference excluded from Git.
 
 ## Kubernetes and Helm Profile
 
@@ -86,7 +94,7 @@ The initial dashboard covers authentication outcomes, refresh reuse, session rev
 
 ### Traces
 
-HTTP spans connect to password verification, PostgreSQL transaction, session transition, audit/outbox insert, Kafka publication, and simulated mail delivery. Sensitive request fields are excluded from span attributes.
+HTTP spans connect to password verification, PostgreSQL transaction, session transition, audit/outbox insert, Kafka publication, and SMTP mail delivery. Sensitive request fields are excluded from span attributes.
 
 ### Alerts
 

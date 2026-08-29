@@ -1,11 +1,12 @@
 {
   "info": {
     "name": "Event-Driven E-commerce Platform - Identity Service",
-    "description": "Manual test collection for the Identity Service. Import identity.local.postman_environment.json, start the local Compose profile, and run requests in the documented order. The test mailbox endpoint exists only when IDENTITY_TEST_MAILER_ENABLED=true. Production never exposes it.",
+    "description": "Manual test collection for the Identity Service. Import identity.local.postman_environment.json, start the local MailHog Compose profile, and run requests in the documented order. Verification and reset tokens are extracted from real emails through the MailHog API.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "mailhog_url", "value": "http://localhost:8025" },
     { "key": "user_email", "value": "postman.user@example.test" },
     { "key": "user_password", "value": "correct horse battery staple" },
     { "key": "new_password", "value": "new correct horse battery staple" },
@@ -81,14 +82,14 @@
               "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('User created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('user_id', body.id);", "pm.environment.set('user_email', body.email);"] } }]
             },
             {
-              "name": "Read latest verification mail (local only)",
+              "name": "Read latest verification email (MailHog)",
               "request": {
                 "method": "GET",
                 "header": [],
-                "url": "{{base_url}}/_test/mailbox/latest?kind=email-verification&recipient={{user_email}}",
-                "description": "Requires IDENTITY_MAILER_MODE=simulated and IDENTITY_TEST_MAILER_ENABLED=true."
+                "url": "{{mailhog_url}}/api/v2/messages?limit=50",
+                "description": "Requires the local MailHog profile. Open http://localhost:8025 to inspect the full HTML email."
               },
-              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Mail captured', () => pm.response.to.have.status(200));", "pm.environment.set('verification_token', pm.response.json().token);"] } }]
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog returned messages', () => pm.response.to.have.status(200));", "const email = pm.environment.get('user_email').toLowerCase();", "const messages = pm.response.json().items || [];", "const message = messages.find(item => JSON.stringify(item).toLowerCase().includes(email) && /verify your|verification/i.test(JSON.stringify(item.Content || item)));", "pm.expect(message, 'verification email').to.exist;", "const body = message.Content && message.Content.Body ? message.Content.Body : '';", "const match = body.match(/[?&]token=([a-f0-9]{64})/i);", "pm.expect(match, 'verification token').to.not.be.null;", "pm.environment.set('verification_token', match[1]);"] } }]
             },
             {
               "name": "Confirm email verification",
@@ -136,9 +137,9 @@
               "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Reset request accepted', () => pm.response.to.have.status(202));"] } }]
             },
             {
-              "name": "Read latest password reset mail (local only)",
-              "request": { "method": "GET", "header": [], "url": "{{base_url}}/_test/mailbox/latest?kind=password-reset&recipient={{user_email}}" },
-              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Mail captured', () => pm.response.to.have.status(200));", "pm.environment.set('reset_token', pm.response.json().token);"] } }]
+              "name": "Read latest password reset email (MailHog)",
+              "request": { "method": "GET", "header": [], "url": "{{mailhog_url}}/api/v2/messages?limit=50", "description": "Requires the local MailHog profile. Open http://localhost:8025 to inspect the full HTML email." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog returned messages', () => pm.response.to.have.status(200));", "const email = pm.environment.get('user_email').toLowerCase();", "const messages = pm.response.json().items || [];", "const message = messages.find(item => JSON.stringify(item).toLowerCase().includes(email) && /reset your|password reset/i.test(JSON.stringify(item.Content || item)));", "pm.expect(message, 'password reset email').to.exist;", "const body = message.Content && message.Content.Body ? message.Content.Body : '';", "const match = body.match(/[?&]token=([a-f0-9]{64})/i);", "pm.expect(match, 'password reset token').to.not.be.null;", "pm.environment.set('reset_token', match[1]);"] } }]
             },
             {
               "name": "Confirm password reset",
@@ -212,6 +213,17 @@
               "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status mutation completed or was denied by policy', () => pm.expect([204, 403, 404]).to.include(pm.response.code));"] } }]
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Local Test Utilities (simulated mailer only)",
+      "description": "Not used by the MailHog local profile. This endpoint exists only when IDENTITY_MAILER_MODE=simulated and IDENTITY_TEST_MAILER_ENABLED=true.",
+      "item": [
+        {
+          "name": "Read latest simulated mailbox message",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/_test/mailbox/latest?kind=email-verification&recipient={{user_email}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Simulated mailbox responded', () => pm.expect([200, 404]).to.include(pm.response.code));", "if (pm.response.code === 200) pm.environment.set('verification_token', pm.response.json().token);"] } }]
         }
       ]
     }

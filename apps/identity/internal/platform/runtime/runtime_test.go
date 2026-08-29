@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -27,4 +28,35 @@ func TestSimulatedMailerRequiresDeliveryData(t *testing.T) {
 	if _, err := mailer.Latest(context.Background(), "password-reset", "missing@example.test"); err == nil {
 		t.Fatal("expected missing message")
 	}
+}
+
+func TestIdentityEmailTemplatesRenderSecureActionLinks(t *testing.T) {
+	content, err := renderIdentityEmail("email-verification", "person@example.test", "abc123", "https://app.example.test", "/verify-email", "/reset-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content.Subject == "" || content.Text == "" || content.HTML == "" {
+		t.Fatal("expected complete email content")
+	}
+	if !containsAll(content.Text, "https://app.example.test/verify-email?token=abc123", "24 hours") {
+		t.Fatalf("unexpected text template: %s", content.Text)
+	}
+	if !containsAll(content.HTML, "Verify email address", "https://app.example.test/verify-email?token=abc123") {
+		t.Fatalf("unexpected HTML template: %s", content.HTML)
+	}
+}
+
+func TestIdentityEmailTemplatesRejectUnknownKinds(t *testing.T) {
+	if _, err := renderIdentityEmail("unknown", "person@example.test", "token", "https://app.example.test", "/verify-email", "/reset-password"); err == nil {
+		t.Fatal("expected unknown email kind to fail")
+	}
+}
+
+func containsAll(value string, required ...string) bool {
+	for _, item := range required {
+		if !strings.Contains(value, item) {
+			return false
+		}
+	}
+	return true
 }

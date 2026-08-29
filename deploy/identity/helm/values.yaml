@@ -20,6 +20,9 @@ config:
   smtpHost: ""
   smtpPort: 587
   smtpFrom: identity@example.com
+  publicAppURL: https://app.example.com
+  emailVerificationPath: /verify-email
+  passwordResetPath: /reset-password
 secret:
   databaseURL: ""
   redisURL: ""

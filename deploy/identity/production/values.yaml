@@ -1,0 +1,12 @@
+config:
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: live.smtp.mailtrap.io
+  smtpPort: 587
+  smtpFrom: identity@example.com
+  publicAppURL: https://app.example.com
+  emailVerificationPath: /verify-email
+  passwordResetPath: /reset-password
+secret:
+  smtpUsername: api
+  smtpPassword: ""

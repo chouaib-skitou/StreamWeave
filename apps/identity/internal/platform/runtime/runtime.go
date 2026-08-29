@@ -65,26 +65,34 @@ func messageKey(kind, recipient string) string {
 }
 
 type SMTPMailer struct {
-	host     string
-	port     int
-	username string
-	password string
-	from     string
+	host             string
+	port             int
+	username         string
+	password         string
+	from             string
+	publicAppURL     string
+	verificationPath string
+	resetPath        string
 }
 
 func NewSMTPMailer(host string, port int, username, password, from string) *SMTPMailer {
-	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from}
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: "http://localhost:3000", verificationPath: "/verify-email", resetPath: "/reset-password"}
+}
+
+func NewConfiguredSMTPMailer(host string, port int, username, password, from, publicAppURL, verificationPath, resetPath string) *SMTPMailer {
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: publicAppURL, verificationPath: verificationPath, resetPath: resetPath}
 }
 
 func (m *SMTPMailer) Send(ctx context.Context, kind, recipient, token string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	subject := "Identity verification"
-	if kind == "password-reset" {
-		subject = "Password reset"
+	content, err := renderIdentityEmail(kind, recipient, token, m.publicAppURL, m.verificationPath, m.resetPath)
+	if err != nil {
+		return err
 	}
-	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nYour one-time identity token is:\r\n%s\r\n", m.from, recipient, subject, token)
+	boundary := "identity-mail-boundary"
+	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s--\r\n", m.from, recipient, content.Subject, boundary, boundary, content.Text, boundary, content.HTML, boundary)
 	address := fmt.Sprintf("%s:%d", m.host, m.port)
 	var auth smtp.Auth
 	if m.username != "" {

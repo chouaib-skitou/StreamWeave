@@ -84,7 +84,7 @@ The system shall verify passwords using Argon2id and return one generic invalid-
 
 #### FR-3: Password reset and email verification
 
-The system shall support hashed, single-use, expiring password-reset and email-verification tokens with configurable SMTP delivery. Development Compose shall provide an explicitly enabled in-memory mailbox for manual testing without exposing tokens in logs or the public API.
+The system shall support hashed, single-use, expiring password-reset and email-verification tokens with configurable SMTP delivery. Local Compose shall deliver real multipart emails to MailHog, staging shall use the Mailtrap Email Sandbox, and production shall use Mailtrap Email Sending. An in-memory mailbox is permitted only for isolated tests and must never be enabled in shared environments or production.
 
 **Consequences:**
 
@@ -231,7 +231,7 @@ Credential issuance is fail-closed when its required Redis rate limiter is unava
 
 - Demo registration behind configuration.
 - Login, access-token issuance, JWKS, refresh rotation, logout, logout-all, and session listing.
-- Password reset and email verification token lifecycle with simulated delivery.
+- Password reset and email verification token lifecycle with SMTP delivery and local MailHog inspection.
 - User retrieval and explicit RBAC role administration.
 - Service-principal machine-token issuance on an internal route.
 - PostgreSQL migrations, repositories, durable audit/outbox, Redis revocation and rate limiting.

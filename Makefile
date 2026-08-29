@@ -24,10 +24,10 @@ identity-image:
 	docker build -f deploy/identity/Dockerfile -t identity:local .
 
 identity-compose-up:
-	docker compose -f deploy/identity/compose.yaml up -d --build
+	docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml up -d --build
 
 identity-compose-down:
-	docker compose -f deploy/identity/compose.yaml down -v
+	docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml down -v
 
 identity-kind-deploy:
 	helm upgrade --install identity deploy/identity/helm --namespace identity --create-namespace
