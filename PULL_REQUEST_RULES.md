@@ -47,4 +47,4 @@ Review comments must be specific, evidence-based, and constructive. Explain the 
 
 ## Merge policy
 
-`main` and `dev` require reviewed pull requests. Direct pushes, force-pushes, and branch deletion are disabled. At least one approval and resolution of review conversations are required. Prefer squash merging for short-lived branches.
+`main` and `dev` require pull requests and resolved review conversations. A maintainer approval is recommended but is not a mandatory merge condition for this solo-maintainer repository. Direct human pushes, force-pushes, and branch deletion are disabled. The release workflow is the only documented machine-owned exception: it updates release metadata on `main` and synchronizes `VERSION` and `CHANGELOG.md` to `dev` using the maintainer release secret. Prefer squash merging for short-lived branches.

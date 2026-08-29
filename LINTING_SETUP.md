@@ -1,10 +1,10 @@
 # Linting and Local Quality
 
-The implementation target is Go 1.26.x. Formatting, static analysis, contract validation, dependency checks, and security scanning will become enforced CI checks as the corresponding source and workflows are added.
+The implementation target is Go 1.26.x. Formatting, static analysis, contract validation, dependency checks, and security scanning will become enforced CI checks as the corresponding source and workflows are added. The repository currently has a release workflow, but it is not a substitute for application quality CI.
 
 ## Current repository state
 
-This repository is still greenfield. No application module, root `Makefile`, CI workflow, or `.golangci.yml` is currently the source of truth for executable commands. Do not report a lint command as operational until its configuration and invocation exist in the repository.
+This repository is still greenfield. No application module, root `Makefile`, quality CI workflow, or `.golangci.yml` is currently the source of truth for executable commands. The release workflow is present and operational, but it only handles Semantic Release and release metadata synchronization. Do not report a lint or test command as operational until its configuration and invocation exist in the repository.
 
 ## Required quality rules
 

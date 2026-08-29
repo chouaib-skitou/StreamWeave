@@ -4,7 +4,7 @@ This is a greenfield Go monorepo for an event-driven e-commerce order management
 
 ## Quick start
 
-The repository does not yet contain application modules, a root `Makefile`, Docker Compose configuration, or CI workflows. Do not run or document commands as available until their files exist and have been verified.
+The repository does not yet contain application modules, a root `Makefile`, Docker Compose configuration, or quality CI workflows. The release workflow exists and is reserved for Semantic Release and release metadata synchronization. Do not run or document application commands as available until their files exist and have been verified.
 
 Before implementation, read:
 

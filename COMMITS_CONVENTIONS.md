@@ -114,4 +114,6 @@ Use `security` for a security-specific change and describe the affected boundary
 
 ## Tooling policy
 
-Commit linting and release automation are planned CI capabilities. When introduced, configure them from this document rather than adding a second incompatible convention. Local hooks may assist a developer but are not the source of truth because `.git/hooks/` is not versioned.
+Release automation is operational through `.github/workflows/release.yml` and Semantic Release. It analyzes Conventional Commits after a merge to `main`, updates `VERSION` and `CHANGELOG.md`, creates the release tag, and synchronizes release metadata to `dev`.
+
+Commit linting and broader quality checks remain planned CI capabilities. When introduced, configure them from this document rather than adding a second incompatible convention. Local hooks may assist a developer but are not the source of truth because `.git/hooks/` is not versioned.

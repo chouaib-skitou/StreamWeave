@@ -53,6 +53,37 @@ The API must expose intermediate states honestly rather than pretending the dist
 
 The project uses simulated identity/payment data only. Never store real secrets or cardholder data.
 
+## Repository state
+
+The repository is in the planning and architecture preparation phase. The product brief, project context, repository governance, BMAD workflow, and release automation are present. The Go applications, API and event contracts, database migrations, deployment manifests, quality CI, and tests will be added through reviewed feature branches.
+
+The private BMAD installation, local agent instructions, original blueprint, BMAD guide, and generated BMAD output remain local-only and are excluded by `.gitignore`.
+
+## Delivery governance
+
+Human changes follow:
+
+```text
+short-lived branch → pull request to dev → pull request to main → merge to main
+```
+
+`main` and `dev` block force-pushes and branch deletion and require resolved review conversations. Approval is recommended but not mandatory for this solo-maintainer repository. The release workflow is a documented machine-owned exception: after a merge to `main`, Semantic Release updates `VERSION` and `CHANGELOG.md`, publishes the platform tag and GitHub Release, and synchronizes those two files to `dev`.
+
+The release workflow does not replace application CI. Quality checks become authoritative only when their Makefile, scripts, contracts, and workflows exist and are required by the repository rules.
+
+## Canonical documentation map
+
+| Concern | Location |
+|---|---|
+| Product brief | `docs/brief.md` |
+| PRD | `docs/prd/` |
+| Architecture | `docs/architecture/` |
+| ADRs | `docs/architecture/decisions/` |
+| Epics and stories | `docs/stories/` |
+| API and event contracts | `contracts/` |
+| Runbooks | `docs/runbooks/` |
+| BMAD operating guide | local `docs/bmad/workflow.md` |
+
 ## Interview narrative
 
 For every significant design choice, be able to explain:
@@ -68,6 +99,7 @@ For every significant design choice, be able to explain:
 
 ## Current milestones
 
+M0: context, product requirements, architecture, ADRs, and contracts plan.
 M1: synchronous skeleton and contracts.
 M2: Kafka + outbox.
 M3: inventory/payment saga.
