@@ -1,28 +1,37 @@
 # Versioning and Releases
 
-The platform uses Semantic Versioning for coordinated releases. The current release automation is implemented with Release Please and runs from pushes to protected `main`.
+The platform uses Semantic Versioning and Conventional Commits. Human changes follow the protected Git flow:
 
-## Version source
+```text
+feature branch
+    → pull request to dev
+    → pull request to main
+    → merge to main
+```
 
-The current platform version is stored in [`VERSION`](VERSION). The initial development baseline is `0.1.0`.
-
-All services may have separate image names, but artifacts from one platform release share the same platform version. Image digests are preferred over mutable tags for deployment.
+After a merge to `main`, GitHub Actions publishes the release directly. No release pull request or manual Codex action is required.
 
 ## Automatic release flow
 
 ```text
-Reviewed changes merged into main
+Merge reviewed PR into main
           ↓
-Release Please workflow runs
+Semantic Release analyzes Conventional Commits
           ↓
-Release PR updates VERSION and CHANGELOG.md
+VERSION and CHANGELOG.md are updated and committed to main
           ↓
-Release PR is reviewed and merged
+vX.Y.Z tag and GitHub Release are published
           ↓
-GitHub Release + vX.Y.Z tag are created automatically
+VERSION and CHANGELOG.md are synchronized directly to dev
 ```
 
-The workflow is PR-first so it remains compatible with the repository rule that `main` cannot receive direct pushes. A push to `main` creates or updates one release pull request; merging that generated PR publishes the release. The generated release commit does not create an infinite workflow loop.
+The release commit and the synchronization commit are machine-owned exceptions to the human PR flow. GitHub Actions is the only actor allowed to bypass the protected-branch rules for these two operations.
+
+## Version source
+
+The platform version is stored in [`VERSION`](VERSION). The current baseline is `0.1.1`.
+
+The root `package.json` is CI-only release tooling and is not the platform version source.
 
 ## Version format
 
@@ -31,49 +40,42 @@ MAJOR.MINOR.PATCH
 ```
 
 - `MAJOR`: incompatible API, event, data, or operational contract change;
-- `MINOR`: backward-compatible capability;
-- `PATCH`: backward-compatible bug fix, performance, security, or internal correction.
+- `MINOR`: backward-compatible capability (`feat`);
+- `PATCH`: bug fix, performance, security, or internal correction.
 
-Breaking REST changes require a new API version. Breaking event changes require a new event type or schema version even when the platform version also changes.
+Breaking changes require `!` or a `BREAKING CHANGE:` footer and must include migration notes.
 
 ## Commit-to-release policy
 
-Release Please analyzes English Conventional Commits:
-
 | Commit | Release impact |
 |---|---|
-| `feat` | Minor |
-| `fix`, `perf`, `refactor`, `security` | Patch when recognized by the configured release rules |
-| `!` or `BREAKING CHANGE` | Major |
-| `docs`, `style`, `test`, `build`, `ci`, `chore` | No release by default |
-| `revert` | Patch when it changes released behavior |
+| `feat(scope): ...` | Minor |
+| `fix(scope): ...` | Patch |
+| `perf(scope): ...` | Patch |
+| `refactor(scope): ...` | Patch |
+| `security(scope): ...` | Patch |
+| `type(scope)!: ...` or `BREAKING CHANGE:` | Major |
+| `docs`, `style`, `test`, `build`, `ci`, `chore` | No release |
 
-Several breaking changes in one release produce one major version. Every breaking change must include migration notes and affected consumers.
-
-## Development versions
-
-Keep the platform below `1.0.0` while its public API and event contracts evolve. Document breaking changes and migration impact even before the first stable release. Choose `1.0.0` deliberately after the core order lifecycle, contracts, recovery behavior, and release evidence are validated.
+Merge commits are ignored by the release analyzer. Every human commit must still follow [`COMMITS_CONVENTIONS.md`](COMMITS_CONVENTIONS.md).
 
 ## Release artifacts
 
-Each published release should contain, as applicable:
+Each published release contains:
 
-- `VERSION` updated to the released SemVer;
-- a generated `CHANGELOG.md` entry;
-- a GitHub Release;
-- an immutable tag such as `v1.2.3`;
-- immutable container image references;
-- Helm package references;
-- migration and rollback notes;
-- SBOM and provenance evidence when the CI pipeline supports them.
+- updated `VERSION`;
+- generated `CHANGELOG.md` entry;
+- immutable tag `vX.Y.Z`;
+- GitHub Release notes;
+- synchronization of `VERSION` and `CHANGELOG.md` to `dev`.
 
-Never delete or rewrite a published tag or release. Fix a release through a new commit and a new version.
+Never delete or rewrite a published tag. Correct a release with a new Conventional Commit and a new version.
 
-## Configuration and maintenance
+## Configuration
 
 - Workflow: `.github/workflows/release.yml`;
-- Release configuration: `release-please-config.json`;
-- Version manifest: `.release-please-manifest.json`;
-- Commit rules: `COMMITS_CONVENTIONS.md`.
+- Semantic Release configuration: `.releaserc.cjs`;
+- Version writer: `scripts/update-version.cjs`;
+- CI-only dependencies: `package.json` and `package-lock.json`.
 
-Keep the action version and configuration maintained through reviewed pull requests. Before enabling new release outputs such as container images, add their build and security gates to the release workflow.
+Release automation is direct by design. Branch protections still require pull requests for human changes; only the GitHub Actions integration bypasses the rules for the two release metadata commits.

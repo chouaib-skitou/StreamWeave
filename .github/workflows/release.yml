@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write
   issues: write
-  pull-requests: write
 
 concurrency:
   group: release
@@ -17,58 +16,61 @@ concurrency:
 
 jobs:
   release:
-    name: Prepare or publish release
+    name: Publish release and synchronize dev
     runs-on: ubuntu-latest
     steps:
-      - name: Run Release Please
-        id: release
-        uses: googleapis/release-please-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          target-branch: main
-
-      - name: Check out released main
-        if: steps.release.outputs.release_created == 'true'
+      - name: Check out main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - name: Read released version
-        id: version
-        if: steps.release.outputs.release_created == 'true'
-        shell: bash
-        run: |
-          version="$(tr -d '\r\n' < VERSION)"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION does not contain a valid SemVer value: $version" >&2
-            exit 1
-          fi
-          echo "value=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Create dev synchronization pull request
-        if: steps.release.outputs.release_created == 'true'
-        uses: peter-evans/create-pull-request@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: dev
-          branch: automation/release-sync-v${{ steps.version.outputs.value }}
-          delete-branch: true
-          commit-message: "chore(release): Sync version ${{ steps.version.outputs.value }} to dev"
-          title: "chore(release): Sync version ${{ steps.version.outputs.value }} to dev"
-          body: |
-            ## Summary
+          node-version: 24
+          cache: npm
 
-            Synchronize the released platform version from `main` to `dev`.
+      - name: Install release tooling
+        run: npm ci
 
-            This pull request is generated after GitHub Release `v${{ steps.version.outputs.value }}` is published.
+      - name: Publish release
+        id: release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          before_sha="$(git rev-parse HEAD)"
+          npm run release
+          after_sha="$(git rev-parse HEAD)"
 
-            ## Validation
+          if [[ "$before_sha" == "$after_sha" ]]; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-            - [ ] Confirm `VERSION` matches the published release.
-            - [ ] Confirm `CHANGELOG.md` contains the published release entry.
-            - [ ] Confirm no development-only changes are overwritten.
+          version="$(tr -d '\r\n' < VERSION)"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-            The `dev` branch remains protected and must be updated through this reviewed pull request.
+      - name: Synchronize release files to dev
+        if: steps.release.outputs.created == 'true'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git fetch origin main dev --tags
+          sync_dir="${RUNNER_TEMP}/dev-release-sync"
+          git worktree add --detach "$sync_dir" origin/dev
+          git -C "$sync_dir" checkout origin/main -- VERSION CHANGELOG.md
+
+          if git -C "$sync_dir" diff --quiet -- VERSION CHANGELOG.md; then
+            echo "dev already contains release metadata ${RELEASE_VERSION}."
+            exit 0
+          fi
+
+          git -C "$sync_dir" config user.name "github-actions[bot]"
+          git -C "$sync_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$sync_dir" add VERSION CHANGELOG.md
+          git -C "$sync_dir" commit -m "chore(release): Sync version ${RELEASE_VERSION} to dev [skip ci]"
+          git -C "$sync_dir" push origin HEAD:dev
