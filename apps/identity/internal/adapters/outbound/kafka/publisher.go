@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	identitypostgres "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/postgres"
+	identitypostgres "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/postgres"
 	segmentkafka "github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

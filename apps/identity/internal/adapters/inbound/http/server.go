@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	identitycrypto "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/crypto"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/health"
-	identityapp "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/identity"
+	identitycrypto "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/crypto"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/application/health"
+	identityapp "github.com/chouaib-skitou/streamweave/apps/identity/internal/application/identity"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

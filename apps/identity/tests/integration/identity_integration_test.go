@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/postgres"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/postgres"
 )
 
 func TestIdentityIntegrationEnvironment(t *testing.T) {
