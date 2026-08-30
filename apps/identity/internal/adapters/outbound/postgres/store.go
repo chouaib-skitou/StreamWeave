@@ -12,6 +12,7 @@ import (
 	appidentity "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/identity"
 	domain "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/domain/identity"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Store struct {
@@ -254,6 +255,10 @@ func mapDatabaseError(err error) error {
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ErrNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return domain.ErrConflict
 	}
 	return err
 }

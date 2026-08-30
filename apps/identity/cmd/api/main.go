@@ -22,6 +22,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
+		slog.Error("identity failed to start", "error", err)
 		os.Exit(1)
 	}
 }

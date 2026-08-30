@@ -152,10 +152,10 @@ VALUES
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT '00000000-0000-0000-0000-000000000011', id FROM permissions WHERE name = 'orders:read:self'
-UNION ALL SELECT '00000000-0000-0000-0000-000000000012', id FROM permissions WHERE name IN ('orders:read:any', 'orders:cancel')
-UNION ALL SELECT '00000000-0000-0000-0000-000000000013', id FROM permissions WHERE name = 'payments:refund'
-UNION ALL SELECT '00000000-0000-0000-0000-000000000014', id FROM permissions WHERE name IN ('identity:users:read', 'identity:roles:manage')
+SELECT '00000000-0000-0000-0000-000000000011'::uuid, id FROM permissions WHERE name = 'orders:read:self'
+UNION ALL SELECT '00000000-0000-0000-0000-000000000012'::uuid, id FROM permissions WHERE name IN ('orders:read:any', 'orders:cancel')
+UNION ALL SELECT '00000000-0000-0000-0000-000000000013'::uuid, id FROM permissions WHERE name = 'payments:refund'
+UNION ALL SELECT '00000000-0000-0000-0000-000000000014'::uuid, id FROM permissions WHERE name IN ('identity:users:read', 'identity:roles:manage')
 ON CONFLICT DO NOTHING;
 -- +goose StatementEnd
 
