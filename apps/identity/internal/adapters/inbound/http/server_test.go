@@ -30,6 +30,7 @@ func TestHealthEndpointsExposeOperationalState(t *testing.T) {
 		{path: "/health/startup", want: http.StatusOK},
 		{path: "/health/ready", want: http.StatusOK},
 		{path: "/metrics", want: http.StatusOK},
+		{path: "/v1/docs", want: http.StatusOK},
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, test.path, nil)
@@ -37,6 +38,22 @@ func TestHealthEndpointsExposeOperationalState(t *testing.T) {
 		if recorder.Code != test.want {
 			t.Fatalf("%s: got %d, want %d", test.path, recorder.Code, test.want)
 		}
+	}
+}
+
+func TestSwaggerDocsHasSecurityHeaders(t *testing.T) {
+	service := health.NewService()
+	server := NewServer(":0", "/metrics", time.Second, service, slog.Default())
+	recorder := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/docs", nil))
+	if recorder.Header().Get("Content-Security-Policy") == "" {
+		t.Fatal("expected Content-Security-Policy header")
+	}
+	if recorder.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("expected nosniff header")
+	}
+	if recorder.Body.String() == "" {
+		t.Fatal("expected Swagger UI document")
 	}
 }
 

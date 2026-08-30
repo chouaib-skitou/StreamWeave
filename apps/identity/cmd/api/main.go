@@ -112,6 +112,7 @@ func run() error {
 		}
 	}()
 	server := httpadapter.NewApplicationServer(cfg.HTTPAddr, cfg.MetricsPath, cfg.ReadinessTimeout, healthService, logger, identityService, signer, cache, cfg.HumanAudience, cfg.DemoRegistration, cfg.TestMailerEnabled, mailbox)
+	server.SetOpenAPIPath(cfg.OpenAPIPath)
 	server.SetTrustProxyHeaders(cfg.TrustProxyHeaders)
 	server.SetEmergencyRevocation(cfg.EmergencyRevocation)
 	server.SetDBStatsProvider(database.DB().Stats)

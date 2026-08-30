@@ -48,6 +48,7 @@ type Server struct {
 	trustProxyHeaders   bool
 	emergencyRevocation bool
 	dbStats             func() sql.DBStats
+	openAPIPath         string
 }
 
 type RevocationChecker interface {
@@ -82,11 +83,13 @@ func NewServer(addr, metricsPath string, readinessTimeout time.Duration, healthS
 	registry.MustRegister(requests, authentication, refreshes, refreshReuse, jwtVerification, sessionRevoked, outboxPublished, rateLimited, dbPoolInUse, dbPoolWaitCount, outboxBacklog)
 
 	mux := http.NewServeMux()
-	server := &Server{health: healthService, logger: logger, requests: requests, authentication: authentication, refreshes: refreshes, refreshReuse: refreshReuse, jwtVerification: jwtVerification, sessionRevoked: sessionRevoked, outboxPublished: outboxPublished, rateLimited: rateLimited, dbPoolInUse: dbPoolInUse, dbPoolWaitCount: dbPoolWaitCount, outboxBacklog: outboxBacklog, mux: mux}
+	server := &Server{health: healthService, logger: logger, requests: requests, authentication: authentication, refreshes: refreshes, refreshReuse: refreshReuse, jwtVerification: jwtVerification, sessionRevoked: sessionRevoked, outboxPublished: outboxPublished, rateLimited: rateLimited, dbPoolInUse: dbPoolInUse, dbPoolWaitCount: dbPoolWaitCount, outboxBacklog: outboxBacklog, mux: mux, openAPIPath: "contracts/openapi/identity.openapi.yaml"}
 	mux.HandleFunc("GET /health/live", server.live)
 	mux.HandleFunc("GET /health/startup", server.startup)
 	mux.HandleFunc("GET /health/ready", server.ready(readinessTimeout))
 	mux.Handle(metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("GET /v1/docs", server.swaggerDocs)
+	mux.HandleFunc("GET /v1/openapi.yaml", server.openAPI)
 
 	server.httpServer = &http.Server{
 		Addr:              addr,
@@ -100,7 +103,12 @@ func NewServer(addr, metricsPath string, readinessTimeout time.Duration, healthS
 }
 
 func (s *Server) SetDBStatsProvider(provider func() sql.DBStats) { s.dbStats = provider }
-func (s *Server) SetOutboxBacklog(value int64)                   { s.outboxBacklog.Set(float64(value)) }
+func (s *Server) SetOpenAPIPath(path string) {
+	if path != "" {
+		s.openAPIPath = path
+	}
+}
+func (s *Server) SetOutboxBacklog(value int64) { s.outboxBacklog.Set(float64(value)) }
 func (s *Server) ObserveSessionRevocation(reason string) {
 	s.sessionRevoked.WithLabelValues(reason).Inc()
 }

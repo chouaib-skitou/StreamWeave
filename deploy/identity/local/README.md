@@ -11,6 +11,8 @@ docker compose --env-file .env -f compose.yaml up --build
 ```
 
 - Identity API: `http://localhost:8080`
+- Swagger UI: `http://localhost:8080/v1/docs`
+- OpenAPI contract: `http://localhost:8080/v1/openapi.yaml`
 - MailHog inbox: `http://localhost:8025`
 - MailHog SMTP: `localhost:1025` (container address: `identity-mailhog:1025`)
 - Grafana dashboard: `http://localhost:3001`

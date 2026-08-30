@@ -48,6 +48,7 @@ services:
     build: { context: ../../.., dockerfile: deploy/identity/Dockerfile }
     environment:
       IDENTITY_HTTP_ADDR: :8080
+      IDENTITY_OPENAPI_PATH: /contracts/openapi/identity.openapi.yaml
       IDENTITY_ENVIRONMENT: development
       IDENTITY_DATABASE_URL: postgres://identity:${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in .env}@identity-postgres:5432/identity?sslmode=disable
       IDENTITY_REDIS_URL: redis://identity-redis:6379/0

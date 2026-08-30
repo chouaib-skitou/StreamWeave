@@ -31,6 +31,7 @@ config:
   publicAppURL: https://app.example.com
   otelEndpoint: ""
   otelInsecure: false
+  openapiPath: /contracts/openapi/identity.openapi.yaml
   signingKeyHistoryDir: ""
   trustProxyHeaders: true
   rateLoginSource: 30

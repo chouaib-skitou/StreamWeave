@@ -14,6 +14,31 @@ tags:
   - name: Service identity
   - name: Operations
 paths:
+  /v1/docs:
+    get:
+      tags: [Operations]
+      summary: Open the interactive API documentation
+      operationId: swaggerDocs
+      security: []
+      responses:
+        '200':
+          description: Swagger UI HTML document
+          content:
+            text/html:
+              schema: { type: string }
+  /v1/openapi.yaml:
+    get:
+      tags: [Operations]
+      summary: Download the Identity OpenAPI contract
+      operationId: openapiContract
+      security: []
+      responses:
+        '200':
+          description: OpenAPI YAML contract
+          content:
+            application/yaml:
+              schema: { type: string }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /health/live:
     get:
       tags: [Operations]

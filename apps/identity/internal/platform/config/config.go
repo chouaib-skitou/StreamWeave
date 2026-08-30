@@ -32,6 +32,7 @@ type Config struct {
 	ShutdownTimeout      time.Duration
 	ReadinessTimeout     time.Duration
 	MetricsPath          string
+	OpenAPIPath          string
 	DemoRegistration     bool
 	EmergencyRevocation  bool
 	Issuer               string
@@ -73,6 +74,7 @@ func Load(source Source) (Config, error) {
 		Environment:          value(source, "IDENTITY_ENVIRONMENT", "development"),
 		LogLevel:             value(source, "IDENTITY_LOG_LEVEL", "info"),
 		MetricsPath:          value(source, "IDENTITY_METRICS_PATH", "/metrics"),
+		OpenAPIPath:          value(source, "IDENTITY_OPENAPI_PATH", "contracts/openapi/identity.openapi.yaml"),
 		ShutdownTimeout:      duration(source, "IDENTITY_SHUTDOWN_TIMEOUT", 10*time.Second),
 		ReadinessTimeout:     duration(source, "IDENTITY_READINESS_TIMEOUT", 2*time.Second),
 		RunMigrations:        boolean(source, "IDENTITY_RUN_MIGRATIONS", true),

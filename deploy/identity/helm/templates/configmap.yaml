@@ -19,6 +19,7 @@ data:
   IDENTITY_PUBLIC_APP_URL: {{ .Values.config.publicAppURL | quote }}
   IDENTITY_OTEL_ENDPOINT: {{ .Values.config.otelEndpoint | quote }}
   IDENTITY_OTEL_INSECURE: {{ .Values.config.otelInsecure | quote }}
+  IDENTITY_OPENAPI_PATH: {{ .Values.config.openapiPath | quote }}
   IDENTITY_SIGNING_KEY_HISTORY_DIR: {{ .Values.config.signingKeyHistoryDir | quote }}
   IDENTITY_TRUST_PROXY_HEADERS: {{ .Values.config.trustProxyHeaders | quote }}
   IDENTITY_RATE_LOGIN_SOURCE_PER_WINDOW: {{ .Values.config.rateLoginSource | quote }}
