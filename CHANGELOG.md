@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.1.1...v0.2.0) (2026-08-30)
+
+
+### Features
+
+* **identity:** add production-ready identity service ([98a5013](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/commit/98a501306345dd2ffc4dc0f03b5436321b3fc1ec))
+
 # Changelog
 
 ## [0.1.1](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.1.0...v0.1.1) (2026-08-29)
