@@ -161,6 +161,9 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 	newSession := domain.Session{ID: replacementID, FamilyID: session.FamilyID, UserID: user.ID, Status: domain.SessionActive, ExpiresAt: now.Add(refreshTokenTTL), CreatedAt: now, LastUsedAt: &now}
 	reuseDetected := false
 	err = s.store.WithTransaction(ctx, func(tx Transaction) error {
+		if err := tx.CreateSession(ctx, newSession, refreshHash, nil, nil); err != nil {
+			return err
+		}
 		rotated, err := tx.RotateSession(ctx, session.ID, replacementID, now)
 		if err != nil {
 			return err
@@ -168,9 +171,6 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 		if rotated != 1 {
 			reuseDetected = true
 			return nil
-		}
-		if err := tx.CreateSession(ctx, newSession, refreshHash, nil, nil); err != nil {
-			return err
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "refresh.succeeded", Outcome: "success", ActorID: userRef(user.ID), ActorType: "user", TargetID: userRef(session.ID), CorrelationID: input.CorrelationID, At: now})
 	})
