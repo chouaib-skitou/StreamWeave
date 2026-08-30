@@ -1,6 +1,6 @@
 # Pull Request Rules
 
-These rules apply to all pull requests in the event-driven commerce platform.
+These rules apply to all pull requests in the StreamWeave commerce platform.
 
 ## Scope and size
 

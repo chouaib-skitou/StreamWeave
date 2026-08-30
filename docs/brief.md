@@ -1,4 +1,4 @@
-# Product Brief — Event-Driven E-commerce Order Management Platform
+# Product Brief — StreamWeave Event-Driven Commerce Platform
 
 ## Problem
 

@@ -1,8 +1,8 @@
 environment: production
 replicaCount: 2
 image:
-  repository: ghcr.io/chouaib-skitou/event-driven-ecommerce-platform/identity
-  tag: 0.1.1
+  repository: ghcr.io/chouaib-skitou/streamweave-identity
+  tag: v0.3.0
   pullPolicy: IfNotPresent
 secret:
   create: false

@@ -118,6 +118,10 @@ metadata, synchronizes `VERSION` and `CHANGELOG.md` to `dev`, and publishes the
 versioned Identity image to GHCR with SBOM and provenance. This avoids running
 the same test suite and Docker build twice for one promotion.
 
+The canonical Identity image coordinate is
+`ghcr.io/chouaib-skitou/streamweave-identity:v0.3.0`. The human-readable
+release artifact name is `StreamWeave-identity-v0.3.0`; GHCR normalizes the
+repository component to lowercase and keeps the version as an immutable tag.
 The release workflow uses the ephemeral GitHub Actions `GITHUB_TOKEN` with
 `packages: write` for GHCR publication. The separate `RELEASE_TOKEN` is only
 needed for the machine-owned release commit, GitHub Release, and automatic

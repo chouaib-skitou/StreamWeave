@@ -1,8 +1,8 @@
 {
-  "name": "event-driven-ecommerce-platform-release-tooling",
+  "name": "streamweave-release-tooling",
   "version": "0.0.0",
   "private": true,
-  "description": "CI-only release tooling for the event-driven e-commerce platform.",
+  "description": "CI-only release tooling for StreamWeave.",
   "scripts": {
     "release": "semantic-release"
   },

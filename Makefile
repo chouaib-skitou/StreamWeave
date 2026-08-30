@@ -21,7 +21,7 @@ identity-build:
 	go build -trimpath -ldflags="-s -w" -o identity ./apps/identity/cmd/api
 
 identity-image:
-	docker build -f deploy/identity/Dockerfile -t identity:local .
+	docker build -f deploy/identity/Dockerfile -t streamweave-identity:local .
 
 identity-compose-up:
 	docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml up -d --build
