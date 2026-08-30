@@ -16,7 +16,7 @@ docker compose --env-file .env -f compose.yaml up --build
 - Grafana dashboard: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 - Alertmanager: `http://localhost:9093`
-- Tempo: `http://localhost:3200`
+- Tempo API/health: `http://localhost:3200/ready` (Tempo has no standalone web UI; query traces from Grafana Explore)
 
 Grafana logs in with `IDENTITY_GRAFANA_ADMIN_USER` and
 `IDENTITY_GRAFANA_ADMIN_PASSWORD` from `.env`. The provisioned dashboard is
