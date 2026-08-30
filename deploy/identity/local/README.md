@@ -5,10 +5,17 @@ Prometheus, Alertmanager, Grafana, and MailHog. MailHog is a real local SMTP
 server: Identity sends the same multipart HTML/text emails used by the SMTP
 deployment rather than logging or simulating tokens.
 
-```powershell
-Copy-Item .env.example .env
+```bash
+# Recommended from the repository root (creates the ignored local .env once).
+make identity-compose-up
+
+# Or start manually from this directory.
+cp .env.example .env
 docker compose --env-file .env -f compose.yaml up --build
 ```
+
+The local `.env` file is intentionally ignored by Git. Replace the example
+passwords before sharing access to the local environment.
 
 - Identity API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/v1/docs`
