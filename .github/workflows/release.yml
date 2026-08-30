@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   issues: write
+  packages: write
 
 concurrency:
   group: release
@@ -75,3 +76,35 @@ jobs:
           git -C "$sync_dir" add VERSION CHANGELOG.md
           git -C "$sync_dir" commit -m "chore(release): Sync version ${RELEASE_VERSION} to dev [skip ci]"
           git -C "$sync_dir" push origin HEAD:dev
+
+      - name: Log in to GitHub Container Registry
+        if: steps.release.outputs.created == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Extract release image metadata
+        if: steps.release.outputs.created == 'true'
+        id: image-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/identity
+          tags: |
+            type=raw,value=main
+            type=sha,format=short
+            type=raw,value=${{ steps.release.outputs.version }}
+            type=raw,value=v${{ steps.release.outputs.version }}
+
+      - name: Build and publish release image
+        if: steps.release.outputs.created == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/identity/Dockerfile
+          push: true
+          tags: ${{ steps.image-meta.outputs.tags }}
+          labels: ${{ steps.image-meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
