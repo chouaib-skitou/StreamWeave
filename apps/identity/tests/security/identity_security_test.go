@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	identitycrypto "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/crypto"
+	identitycrypto "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/crypto"
 )
 
 func TestAccessTokenVerificationRejectsForgedExpiredAndWrongAudienceTokens(t *testing.T) {

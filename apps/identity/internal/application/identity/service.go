@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	domain "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/domain/identity"
+	domain "github.com/chouaib-skitou/streamweave/apps/identity/internal/domain/identity"
 	"github.com/google/uuid"
 )
 

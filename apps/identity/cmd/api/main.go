@@ -9,17 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	httpadapter "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/inbound/http"
-	identitycrypto "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/crypto"
-	identitykafka "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/kafka"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/postgres"
-	identityredis "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/redis"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/health"
-	identityapp "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/identity"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/config"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/logging"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/runtime"
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/telemetry"
+	httpadapter "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/inbound/http"
+	identitycrypto "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/crypto"
+	identitykafka "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/kafka"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/postgres"
+	identityredis "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/redis"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/application/health"
+	identityapp "github.com/chouaib-skitou/streamweave/apps/identity/internal/application/identity"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/platform/config"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/platform/logging"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/platform/runtime"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/platform/telemetry"
 )
 
 func main() {

@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/postgres/generated"
-	appidentity "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/identity"
-	domain "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/domain/identity"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/postgres/generated"
+	appidentity "github.com/chouaib-skitou/streamweave/apps/identity/internal/application/identity"
+	domain "github.com/chouaib-skitou/streamweave/apps/identity/internal/domain/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel"

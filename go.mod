@@ -1,4 +1,4 @@
-module github.com/chouaib-skitou/event-driven-ecommerce-platform
+module github.com/chouaib-skitou/streamweave
 
 go 1.25.0
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/health"
+	"github.com/chouaib-skitou/streamweave/apps/identity/internal/application/health"
 )
 
 type unavailableDependency struct{}
