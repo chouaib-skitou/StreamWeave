@@ -1,0 +1,231 @@
+{
+  "info": {
+    "name": "Event-Driven E-commerce Platform - Identity Service",
+    "description": "Manual test collection for the Identity Service. Import identity.local.postman_environment.json, start the local MailHog Compose profile, and run requests in the documented order. Verification and reset tokens are extracted from real emails through the MailHog API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "mailhog_url", "value": "http://localhost:8025" },
+    { "key": "user_email", "value": "postman.user@example.test" },
+    { "key": "user_password", "value": "correct horse battery staple" },
+    { "key": "new_password", "value": "new correct horse battery staple" },
+    { "key": "user_id", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "session_id", "value": "" },
+    { "key": "verification_token", "value": "" },
+    { "key": "reset_token", "value": "" },
+    { "key": "service_client_id", "value": "replace-with-seeded-client-id" },
+    { "key": "service_client_secret", "value": "replace-with-seeded-client-secret" },
+    { "key": "service_scopes", "value": "[]" },
+    { "key": "role", "value": "support" },
+    { "key": "correlation_id", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.variables.get('correlation_id')) { pm.variables.set('correlation_id', pm.variables.replaceIn('{{$guid}}')); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Identity Service",
+      "description": "All Identity Service endpoints.",
+      "item": [
+        {
+          "name": "Operations",
+          "item": [
+            {
+              "name": "Liveness",
+              "request": { "method": "GET", "header": [], "url": "{{base_url}}/health/live" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Returns 200', () => pm.response.to.have.status(200));"] } }]
+            },
+            {
+              "name": "Startup",
+              "request": { "method": "GET", "header": [], "url": "{{base_url}}/health/startup" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Returns 200', () => pm.response.to.have.status(200));"] } }]
+            },
+            {
+              "name": "Readiness",
+              "request": { "method": "GET", "header": [], "url": "{{base_url}}/health/ready" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Returns 200', () => pm.response.to.have.status(200));"] } }]
+            },
+            {
+              "name": "Metrics",
+              "request": { "method": "GET", "header": [], "url": "{{base_url}}/metrics" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Returns 200', () => pm.response.to.have.status(200));"] } }]
+            },
+            {
+              "name": "JWKS",
+              "request": { "method": "GET", "header": [], "url": "{{base_url}}/.well-known/jwks.json" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Returns 200', () => pm.response.to.have.status(200));", "pm.test('Contains keys', () => pm.expect(pm.response.json().keys).to.be.an('array').that.is.not.empty);"] } }]
+            }
+          ]
+        },
+        {
+          "name": "Authentication",
+          "item": [
+            {
+              "name": "Register demo user",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}" },
+                "url": "{{base_url}}/.well-known/register"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('User created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.environment.set('user_id', body.id);", "pm.environment.set('user_email', body.email);"] } }]
+            },
+            {
+              "name": "Read latest verification email (MailHog)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{mailhog_url}}/api/v2/messages?limit=50",
+                "description": "Requires the local MailHog profile. Open http://localhost:8025 to inspect the full HTML email."
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog returned messages', () => pm.response.to.have.status(200));", "const email = pm.environment.get('user_email').toLowerCase();", "const messages = pm.response.json().items || [];", "const message = messages.find(item => JSON.stringify(item).toLowerCase().includes(email) && /verify your|verification/i.test(JSON.stringify(item.Content || item)));", "pm.expect(message, 'verification email').to.exist;", "const body = message.Content && message.Content.Body ? message.Content.Body : '';", "const match = body.match(/[?&]token=([a-f0-9]{64})/i);", "pm.expect(match, 'verification token').to.not.be.null;", "pm.environment.set('verification_token', match[1]);"] } }]
+            },
+            {
+              "name": "Confirm email verification",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{verification_token}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/email-verification/confirm"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Email verified', () => pm.response.to.have.status(204));"] } }]
+            },
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/login"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Login succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);", "const encoded = body.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');", "const payload = JSON.parse(atob(encoded));", "pm.environment.set('session_id', payload.sid || '');"] } }]
+            },
+            {
+              "name": "Refresh tokens",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/refresh"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Refresh succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);"] } }]
+            },
+            {
+              "name": "List sessions",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{base_url}}/v1/auth/sessions" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Sessions returned', () => pm.response.to.have.status(200));", "pm.test('Contains sessions array', () => pm.expect(pm.response.json().sessions).to.be.an('array'));"] } }]
+            },
+            {
+              "name": "Request password reset",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/password-reset/request"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Reset request accepted', () => pm.response.to.have.status(202));"] } }]
+            },
+            {
+              "name": "Read latest password reset email (MailHog)",
+              "request": { "method": "GET", "header": [], "url": "{{mailhog_url}}/api/v2/messages?limit=50", "description": "Requires the local MailHog profile. Open http://localhost:8025 to inspect the full HTML email." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog returned messages', () => pm.response.to.have.status(200));", "const email = pm.environment.get('user_email').toLowerCase();", "const messages = pm.response.json().items || [];", "const message = messages.find(item => JSON.stringify(item).toLowerCase().includes(email) && /reset your|password reset/i.test(JSON.stringify(item.Content || item)));", "pm.expect(message, 'password reset email').to.exist;", "const body = message.Content && message.Content.Body ? message.Content.Body : '';", "const match = body.match(/[?&]token=([a-f0-9]{64})/i);", "pm.expect(match, 'password reset token').to.not.be.null;", "pm.environment.set('reset_token', match[1]);"] } }]
+            },
+            {
+              "name": "Confirm password reset",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"new_password\": \"{{new_password}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/password-reset/confirm"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Password reset completed', () => pm.response.to.have.status(204));", "pm.environment.set('user_password', pm.environment.get('new_password'));"] } }]
+            },
+            {
+              "name": "Logout current session",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{base_url}}/v1/auth/logout" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Logout completed', () => pm.response.to.have.status(204));"] } }]
+            },
+            {
+              "name": "Login after password reset",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}" },
+                "url": "{{base_url}}/v1/auth/login"
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Login succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);"] } }]
+            },
+            {
+              "name": "Logout all sessions",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{base_url}}/v1/auth/logout-all" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('All sessions logged out', () => pm.response.to.have.status(204));"] } }]
+            },
+            {
+              "name": "Issue service token",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+                "body": { "mode": "raw", "raw": "{\n  \"client_id\": \"{{service_client_id}}\",\n  \"client_secret\": \"{{service_client_secret}}\",\n  \"scopes\": {{service_scopes}}\n}" },
+                "url": "{{base_url}}/v1/auth/service-token",
+                "description": "Requires an active service principal and credential seeded in the Identity database."
+              },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Service token endpoint responded', () => pm.expect([200, 401, 403, 429, 503]).to.include(pm.response.code));", "if (pm.response.code === 200) pm.environment.set('service_access_token', pm.response.json().access_token);"] } }]
+            }
+          ]
+        },
+        {
+          "name": "Users and RBAC",
+          "item": [
+            {
+              "name": "Get current user",
+              "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{base_url}}/v1/users/{{user_id}}" },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('User returned', () => pm.response.to.have.status(200));", "pm.test('User id matches', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('user_id')));"] } }]
+            },
+            {
+              "name": "Assign role",
+              "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "body": { "mode": "raw", "raw": "{\n  \"role\": \"{{role}}\"\n}" }, "url": "{{base_url}}/v1/users/{{user_id}}/roles", "description": "Requires identity:roles:manage in the current access token." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Role mutation completed or was denied by policy', () => pm.expect([204, 403, 404]).to.include(pm.response.code));"] } }]
+            },
+            {
+              "name": "Remove role",
+              "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{base_url}}/v1/users/{{user_id}}/roles/{{role}}", "description": "Requires identity:roles:manage in the current access token." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Role mutation completed or was denied by policy', () => pm.expect([204, 403, 404]).to.include(pm.response.code));"] } }]
+            },
+            {
+              "name": "Disable user",
+              "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"DISABLED\"\n}" }, "url": "{{base_url}}/v1/users/{{user_id}}/status", "description": "Requires identity:roles:manage in the current access token. Re-enable manually before continuing with the same user." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status mutation completed or was denied by policy', () => pm.expect([204, 403, 404]).to.include(pm.response.code));"] } }]
+            },
+            {
+              "name": "Enable user",
+              "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACTIVE\"\n}" }, "url": "{{base_url}}/v1/users/{{user_id}}/status", "description": "Requires identity:roles:manage in the current access token." },
+              "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status mutation completed or was denied by policy', () => pm.expect([204, 403, 404]).to.include(pm.response.code));"] } }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Local Test Utilities (simulated mailer only)",
+      "description": "Not used by the MailHog local profile. This endpoint exists only when IDENTITY_MAILER_MODE=simulated and IDENTITY_TEST_MAILER_ENABLED=true.",
+      "item": [
+        {
+          "name": "Read latest simulated mailbox message",
+          "request": { "method": "GET", "header": [], "url": "{{base_url}}/_test/mailbox/latest?kind=email-verification&recipient={{user_email}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Simulated mailbox responded', () => pm.expect([200, 404]).to.include(pm.response.code));", "if (pm.response.code === 200) pm.environment.set('verification_token', pm.response.json().token);"] } }]
+        }
+      ]
+    }
+  ]
+}

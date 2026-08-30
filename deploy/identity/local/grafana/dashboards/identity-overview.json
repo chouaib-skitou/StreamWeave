@@ -1,0 +1,148 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "max(up{job=\"identity\"})", "legendFormat": "Identity scrape", "refId": "A"}],
+      "title": "Identity availability",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 9, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum(rate(identity_http_requests_total[5m]))", "legendFormat": "requests/sec", "refId": "A"}],
+      "title": "HTTP request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 9, "x": 15, "y": 0},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (status) (rate(identity_http_requests_total[5m]))", "legendFormat": "{{status}}", "refId": "A"}],
+      "title": "Responses by status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum(increase(identity_http_requests_total{status=\"Internal Server Error\"}[5m]))", "legendFormat": "HTTP 500", "refId": "A"}, {"expr": "sum(increase(identity_http_requests_total{status=\"Service Unavailable\"}[5m]))", "legendFormat": "HTTP 503", "refId": "B"}],
+      "title": "Server and dependency errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (alertname, alertstate) (ALERTS{job=\"identity\"})", "legendFormat": "{{alertname}} ({{alertstate}})", "refId": "A"}],
+      "title": "Active Identity alerts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "text", "uid": "-100"},
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 15},
+      "id": 6,
+      "options": {"content": "## Operational links\n\n- Logs: `docker compose ... logs -f identity`\n- Metrics: [Prometheus](/explore?schemaVersion=1&panes=%7B%7D)\n- Alerts: use the Alertmanager datasource or open `http://localhost:9093`\n- Traces: use the Tempo datasource in Explore when OTLP traces are emitted\n- MailHog: `http://localhost:8025`", "mode": "markdown"},
+      "title": "How to inspect the stack",
+      "type": "text"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 20},
+      "id": 7,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (outcome) (rate(identity_authentication_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Authentication outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 20},
+      "id": 8,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (route) (rate(identity_rate_limited_total[5m]))", "legendFormat": "{{route}}", "refId": "A"}],
+      "title": "Rate-limited routes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 20},
+      "id": 9,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "identity_outbox_backlog", "legendFormat": "pending outbox", "refId": "A"}, {"expr": "identity_db_pool_in_use", "legendFormat": "DB connections in use", "refId": "B"}],
+      "title": "Dependency pressure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 27},
+      "id": 10,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (outcome) (rate(identity_jwt_verification_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "JWT verification outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 27},
+      "id": 11,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (reason) (rate(identity_sessions_revoked_total[5m]))", "legendFormat": "{{reason}}", "refId": "A"}],
+      "title": "Session revocations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 27},
+      "id": 12,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (outcome) (rate(identity_outbox_publish_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Outbox publication",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 34},
+      "id": 13,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (outcome) (rate(identity_refresh_total[5m]))", "legendFormat": "{{outcome}}", "refId": "A"}, {"expr": "increase(identity_refresh_reuse_total[5m])", "legendFormat": "reuse detections", "refId": "B"}],
+      "title": "Refresh-token rotation",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["identity", "local", "observability"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Identity Service Overview",
+  "uid": "identity-overview",
+  "version": 1
+}

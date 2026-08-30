@@ -1,0 +1,88 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $defaultDependencyNamespace := dict "kubernetes.io/metadata.name" .Release.Namespace }}
+{{- $databaseNamespace := .Values.networkPolicy.databaseNamespaceLabels | default $defaultDependencyNamespace }}
+{{- $redisNamespace := .Values.networkPolicy.redisNamespaceLabels | default $defaultDependencyNamespace }}
+{{- $kafkaNamespace := .Values.networkPolicy.kafkaNamespaceLabels | default $defaultDependencyNamespace }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "identity.fullname" . }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "identity.name" . }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.allowedIngressNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.allowedIngressPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 8080 }]
+    - from:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.monitoringNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.monitoringPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 8080 }]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.dnsNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml $databaseNamespace | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.databasePodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 5432 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml $redisNamespace | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.redisPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 6379 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml $kafkaNamespace | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.kafkaPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 9092 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.otelNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.otelPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 4317 }]
+{{- if .Values.networkPolicy.allowSMTP }}
+{{- if not .Values.networkPolicy.smtpCIDRs }}
+{{- fail "networkPolicy.smtpCIDRs must contain explicit destinations when networkPolicy.allowSMTP is true" }}
+{{- end }}
+    - to:
+{{- range .Values.networkPolicy.smtpCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+{{- end }}
+      ports:
+        - { protocol: TCP, port: 587 }
+        - { protocol: TCP, port: 2525 }
+{{- end }}
+{{- end }}

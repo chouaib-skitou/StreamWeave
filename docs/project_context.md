@@ -51,7 +51,38 @@ The API must expose intermediate states honestly rather than pretending the dist
 
 ## Security boundary
 
-The project uses simulated identity/payment data only. Never store real secrets or cardholder data.
+The project uses synthetic data in automated tests. Local Identity development uses MailHog for real SMTP capture, while shared environments use isolated Mailtrap SMTP destinations. Never store real secrets or cardholder data.
+
+## Repository state
+
+The repository contains the approved Identity Service implementation, database migrations, deployment manifests, quality CI, tests, email templates, environment profiles, and API/event contracts. Further services are added through reviewed feature branches.
+
+The private BMAD installation, local agent instructions, original blueprint, BMAD guide, and generated BMAD output remain local-only and are excluded by `.gitignore`.
+
+## Delivery governance
+
+Human changes follow:
+
+```text
+short-lived branch → pull request to dev → pull request to main → merge to main
+```
+
+`main` and `dev` block force-pushes and branch deletion and require resolved review conversations. Approval is recommended but not mandatory for this solo-maintainer repository. The release workflow is a documented machine-owned exception: after a merge to `main`, Semantic Release updates `VERSION` and `CHANGELOG.md`, publishes the platform tag and GitHub Release, and synchronizes those two files to `dev`.
+
+The release workflow does not replace application CI. Quality checks become authoritative only when their Makefile, scripts, contracts, and workflows exist and are required by the repository rules.
+
+## Canonical documentation map
+
+| Concern | Location |
+|---|---|
+| Product brief | `docs/brief.md` |
+| PRD | `docs/prd/` |
+| Architecture | `docs/architecture/` |
+| ADRs | `docs/architecture/decisions/` |
+| Epics and stories | `docs/stories/` |
+| API and event contracts | `contracts/` (Identity baseline available) |
+| Runbooks | `docs/runbooks/` |
+| BMAD operating guide | local `docs/bmad/workflow.md` |
 
 ## Interview narrative
 
@@ -68,6 +99,7 @@ For every significant design choice, be able to explain:
 
 ## Current milestones
 
+M0: context, product requirements, architecture, ADRs, and contracts plan.
 M1: synchronous skeleton and contracts.
 M2: Kafka + outbox.
 M3: inventory/payment saga.

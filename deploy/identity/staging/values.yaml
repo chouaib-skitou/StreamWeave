@@ -1,0 +1,37 @@
+environment: staging
+replicaCount: 2
+image:
+  repository: ghcr.io/chouaib-skitou/event-driven-ecommerce-platform/identity
+  tag: 0.1.1
+  pullPolicy: IfNotPresent
+config:
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: sandbox.smtp.mailtrap.io
+  smtpPort: 2525
+  smtpFrom: identity-staging@example.test
+  publicAppURL: https://staging.example.test
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  signingKeyHistoryDir: /var/run/secrets/identity/history
+  trustProxyHeaders: true
+secret:
+  create: false
+  existingSecret: identity-staging-external
+  signingKeyHistoryExistingSecret: identity-staging-signing-key-history
+networkPolicy:
+  allowedIngressNamespaceLabels:
+    kubernetes.io/metadata.name: ecommerce-gateway
+  allowedIngressPodLabels:
+    app.kubernetes.io/name: gateway
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  monitoringPodLabels:
+    app.kubernetes.io/name: prometheus
+  smtpCIDRs:
+    - 3.86.141.192/32
+    - 3.209.246.195/32
+    - 3.219.2.182/32
+    - 18.215.44.90/32
+    - 54.80.103.13/32
+    - 54.158.84.126/32
+  allowSMTP: true
