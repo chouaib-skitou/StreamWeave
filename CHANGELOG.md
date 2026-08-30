@@ -1,3 +1,11 @@
+# [0.3.0](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.2.1...v0.3.0) (2026-08-30)
+
+
+### Features
+
+* **platform:** promote StreamWeave branding to main ([6847c96](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/commit/6847c96711a61cd46b463a6227348fd915cc9e8f))
+* **platform:** rebrand platform as StreamWeave ([a613fde](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/commit/a613fde0adc73937cfd60dbd1753811bac4b2f2a))
+
 ## [0.2.1](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.2.0...v0.2.1) (2026-08-30)
 
 
