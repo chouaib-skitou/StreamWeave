@@ -3,9 +3,11 @@ info:
   title: Event-Driven E-commerce Identity API
   version: 1.0.0
   description: Authentication, sessions, roles, service principals, and security operations for the platform.
+# Use the origin serving this contract. This keeps Swagger UI usable in local,
+# staging, and production environments without embedding an environment URL.
 servers:
-  - url: https://identity.ecommerce.local
-    description: Local and portfolio deployment placeholder
+  - url: /
+    description: Current Identity API origin
 tags:
   - name: Authentication
   - name: Sessions
