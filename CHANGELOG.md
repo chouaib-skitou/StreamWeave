@@ -1,3 +1,11 @@
+## [0.3.1](https://github.com/chouaib-skitou/streamweave/compare/v0.3.0...v0.3.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **devex:** bootstrap local identity compose environment ([c6359a2](https://github.com/chouaib-skitou/streamweave/commit/c6359a2c8c35536b4a0a9d7e1be9626e0d1121ce))
+* **devex:** promote local identity compose environment ([d4e9440](https://github.com/chouaib-skitou/streamweave/commit/d4e944034faace6e697645c199659d91ec075288))
+
 # [0.3.0](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.2.1...v0.3.0) (2026-08-30)
 
 
