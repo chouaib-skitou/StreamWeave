@@ -1,3 +1,17 @@
+## [0.2.1](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.2.0...v0.2.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* **ci:** repair release image and dev synchronization ([779cead](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/commit/779cead80343a11ddd6ca13cae2c78cdc8cbdab8))
+
+# [0.2.0](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.1.1...v0.2.0) (2026-08-30)
+
+
+### Features
+
+* **identity:** add production-ready identity service ([98a5013](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/commit/98a501306345dd2ffc4dc0f03b5436321b3fc1ec))
+
 # Changelog
 
 ## [0.1.1](https://github.com/chouaib-skitou/event-driven-ecommerce-platform/compare/v0.1.0...v0.1.1) (2026-08-29)
