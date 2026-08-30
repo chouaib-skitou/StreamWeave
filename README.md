@@ -1,6 +1,6 @@
-# Event-Driven E-commerce Order Management Platform
+# StreamWeave — Event-Driven Commerce Platform
 
-Portfolio-grade event-driven commerce platform in Go. The project demonstrates service boundaries, hexagonal architecture, versioned REST and Kafka contracts, database-per-service ownership, transactional outbox, idempotent consumers, Saga coordination, observability, and reliable recovery from partial failure.
+StreamWeave is a portfolio-grade event-driven commerce platform in Go. It demonstrates service boundaries, hexagonal architecture, versioned REST and Kafka contracts, database-per-service ownership, transactional outbox, idempotent consumers, Saga coordination, observability, and reliable recovery from partial failure.
 
 ## Project status
 

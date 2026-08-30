@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Event-Driven E-commerce Platform - Identity Service",
+    "name": "StreamWeave - Identity Service",
     "description": "Manual test collection for the Identity Service. Import identity.local.postman_environment.json, start the local MailHog Compose profile, and run requests in the documented order. Verification and reset tokens are extracted from real emails through the MailHog API.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
