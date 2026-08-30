@@ -66,7 +66,10 @@ jobs:
           git worktree add --detach "$sync_dir" origin/dev
           git -C "$sync_dir" checkout origin/main -- VERSION CHANGELOG.md
 
-          if git -C "$sync_dir" diff --quiet -- VERSION CHANGELOG.md; then
+          # `git checkout <ref> -- <files>` updates both the worktree and the
+          # index. Compare against HEAD so release metadata changes are not
+          # mistaken for an already synchronized dev branch.
+          if git -C "$sync_dir" diff --quiet HEAD -- VERSION CHANGELOG.md; then
             echo "dev already contains release metadata ${RELEASE_VERSION}."
             exit 0
           fi
@@ -84,6 +87,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.release.outputs.created == 'true'
+        uses: docker/setup-buildx-action@v3
 
       - name: Extract release image metadata
         if: steps.release.outputs.created == 'true'
