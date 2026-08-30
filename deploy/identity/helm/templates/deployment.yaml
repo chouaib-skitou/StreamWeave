@@ -29,7 +29,7 @@ spec:
               containerPort: 8080
           envFrom:
             - configMapRef: { name: {{ include "identity.fullname" . }}-config }
-            - secretRef: { name: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }} }
+            - secretRef: { name: {{ include "identity.secretName" . }} }
           env:
             - name: IDENTITY_HTTP_ADDR
               value: ":8080"
@@ -57,7 +57,7 @@ spec:
       volumes:
         - name: signing-key
           secret:
-            secretName: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }}
+            secretName: {{ include "identity.secretName" . }}
             items:
               - key: signing-key.pem
                 path: signing-key.pem

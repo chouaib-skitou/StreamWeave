@@ -5,6 +5,10 @@ password through a secret manager or a CI/CD secret store; do not commit the
 values file with credentials. The sandbox captures every email for inspection
 and must never deliver to real customers.
 
+The NetworkPolicy allows SMTP only to the explicit Mailtrap CIDRs in
+`values.yaml`. Refresh those `/32` entries from the current DNS records before
+deployment if Mailtrap changes the Sandbox endpoint addresses.
+
 Deploy with the shared Identity Helm chart and this file as an override:
 
 ```bash

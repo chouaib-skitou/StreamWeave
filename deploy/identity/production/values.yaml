@@ -27,4 +27,7 @@ networkPolicy:
     kubernetes.io/metadata.name: monitoring
   monitoringPodLabels:
     app.kubernetes.io/name: prometheus
+  smtpCIDRs:
+    - 44.212.106.134/32
+    - 54.158.149.228/32
   allowSMTP: true

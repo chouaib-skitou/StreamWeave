@@ -12,7 +12,9 @@ Secret must contain `IDENTITY_DATABASE_URL`, `IDENTITY_REDIS_URL`,
 The separate `identity-signing-key-history` Secret contains retained public
 keys named `<kid>.pub.pem` during the rotation overlap window.
 Review sender domain, SPF/DKIM/DMARC, alerting, rate limits, and key rotation
-before rollout.
+before rollout. The NetworkPolicy allows SMTP only to the explicit Mailtrap
+CIDRs in `values.yaml`; refresh those `/32` entries from the current DNS
+records if Mailtrap changes the Email Sending endpoint addresses.
 
 ```bash
 helm upgrade --install identity deploy/identity/helm \

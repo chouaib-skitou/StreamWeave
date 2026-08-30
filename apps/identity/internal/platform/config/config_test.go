@@ -73,7 +73,7 @@ func TestValidateRejectsNonPostgresURL(t *testing.T) {
 
 func TestLoadAcceptsSMTPMailerConfiguration(t *testing.T) {
 	cfg, err := Load(mapSource{
-		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity",
+		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity?sslmode=verify-full",
 		"IDENTITY_ENVIRONMENT":      "production",
 		"IDENTITY_SIGNING_KEY_PATH": "/var/run/secrets/identity/signing-key.pem",
 		"IDENTITY_MAILER_MODE":      "smtp",
@@ -88,6 +88,33 @@ func TestLoadAcceptsSMTPMailerConfiguration(t *testing.T) {
 	}
 	if cfg.MailerMode != "smtp" || cfg.SMTPPort != 587 {
 		t.Fatalf("unexpected SMTP configuration: %+v", cfg)
+	}
+}
+
+func TestLoadRejectsInsecureProductionDatabaseTLS(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":     "postgres://identity:secret@localhost/identity?sslmode=disable",
+		"IDENTITY_ENVIRONMENT":      "production",
+		"IDENTITY_SIGNING_KEY_PATH": "/var/run/secrets/identity/signing-key.pem",
+		"IDENTITY_MAILER_MODE":      "smtp",
+		"IDENTITY_SMTP_HOST":        "smtp.example.test",
+		"IDENTITY_SMTP_PORT":        "587",
+		"IDENTITY_SMTP_USERNAME":    "api",
+		"IDENTITY_SMTP_PASSWORD":    "secret",
+		"IDENTITY_SMTP_FROM":        "identity@example.test",
+	})
+	if err == nil {
+		t.Fatal("expected insecure production database TLS configuration to be rejected")
+	}
+}
+
+func TestLoadRejectsMissingStagingDatabaseTLS(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL": "postgres://identity:secret@localhost/identity",
+		"IDENTITY_ENVIRONMENT":  "staging",
+	})
+	if err == nil {
+		t.Fatal("expected staging database TLS configuration to be rejected")
 	}
 }
 

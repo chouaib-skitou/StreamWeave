@@ -131,6 +131,11 @@ func (c Config) Validate() error {
 	if err != nil || databaseURL.Scheme != "postgres" && databaseURL.Scheme != "postgresql" {
 		return errors.New("IDENTITY_DATABASE_URL must be a PostgreSQL URL")
 	}
+	if c.Environment == "staging" || c.Environment == "production" {
+		if databaseURL.Query().Get("sslmode") != "verify-full" {
+			return errors.New("IDENTITY_DATABASE_URL must use sslmode=verify-full in staging and production")
+		}
+	}
 	if strings.TrimSpace(c.MigrationDir) == "" {
 		return errors.New("IDENTITY_MIGRATION_DIR must not be empty")
 	}

@@ -25,7 +25,7 @@ spec:
           command: ["/identity"]
           envFrom:
             - configMapRef: { name: {{ include "identity.fullname" . }}-config }
-            - secretRef: { name: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }} }
+            - secretRef: { name: {{ include "identity.secretName" . }} }
           env:
             - name: IDENTITY_HTTP_ADDR
               value: ":8080"

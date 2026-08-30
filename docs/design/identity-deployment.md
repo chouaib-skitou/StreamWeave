@@ -12,7 +12,7 @@ Required configuration names:
 | `IDENTITY_ISSUER` | JWT issuer claim and verification policy. | No |
 | `IDENTITY_HUMAN_AUDIENCE` | Human access-token audience. | No |
 | `IDENTITY_MACHINE_AUDIENCE` | Service-token audience. | No |
-| `IDENTITY_DATABASE_URL` | Identity PostgreSQL connection. | Yes |
+| `IDENTITY_DATABASE_URL` | Identity PostgreSQL connection. Staging and production require `sslmode=verify-full`. | Yes |
 | `IDENTITY_REDIS_URL` | Disposable revocation/rate-limit Redis connection. | Yes if authenticated |
 | `IDENTITY_KAFKA_BROKERS` | Audit event broker addresses. | No |
 | `IDENTITY_SIGNING_KEY_PATH` | Mounted active private-key reference. | Path only; file is secret |
@@ -80,7 +80,8 @@ The Helm deployment must provide:
 - PodDisruptionBudget and a local one-replica-safe profile;
 - pre-install/pre-upgrade migration Job with `IDENTITY_MIGRATIONS_ONLY=true`; application pods never run migrations at startup;
 - graceful termination period long enough to finish current HTTP work and flush telemetry;
-- explicit dependency egress only to DNS, PostgreSQL, Redis, Kafka, OTLP, and SMTP ports 587/2525; ingress is restricted to the configured gateway and monitoring namespaces.
+- explicit dependency egress only to selected DNS, PostgreSQL, Redis, Kafka, and OTLP pods; SMTP egress is restricted to an explicit provider CIDR allowlist on ports 587/2525. Ingress is restricted to the configured gateway and monitoring namespaces.
+- the chart fails closed when SMTP is enabled without explicit `networkPolicy.smtpCIDRs`; Mailtrap endpoint addresses must be refreshed when the provider changes them.
 
 Readiness must fail when Identity cannot perform its responsibility, including missing signing configuration or PostgreSQL. Redis degradation is surfaced separately and follows the fail-closed revocation policy.
 
