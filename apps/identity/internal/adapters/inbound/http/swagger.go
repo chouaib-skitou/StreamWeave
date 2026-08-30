@@ -1,8 +1,11 @@
 package httpadapter
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"os"
+	"strings"
 )
 
 const swaggerDocsHTML = `<!doctype html>
@@ -16,7 +19,7 @@ const swaggerDocsHTML = `<!doctype html>
 <body>
   <div id="swagger-ui"></div>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-  <script>
+  <script nonce="__SWAGGER_NONCE__">
     window.onload = () => window.ui = SwaggerUIBundle({
       url: "/v1/openapi.yaml",
       dom_id: "#swagger-ui",
@@ -31,12 +34,18 @@ const swaggerDocsHTML = `<!doctype html>
 </html>`
 
 func (s *Server) swaggerDocs(writer http.ResponseWriter, _ *http.Request) {
+	nonceBytes := make([]byte, 16)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		problem(writer, http.StatusInternalServerError, "internal_error", "Unable to initialize API documentation")
+		return
+	}
+	nonce := base64.RawURLEncoding.EncodeToString(nonceBytes)
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.Header().Set("Content-Security-Policy", "default-src 'none'; style-src https://unpkg.com; script-src https://unpkg.com; img-src https://unpkg.com data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+	writer.Header().Set("Content-Security-Policy", "default-src 'none'; style-src https://unpkg.com 'unsafe-inline'; script-src https://unpkg.com 'nonce-"+nonce+"'; img-src https://unpkg.com data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
 	writer.Header().Set("Referrer-Policy", "no-referrer")
 	writer.Header().Set("Cache-Control", "public, max-age=300")
-	_, _ = writer.Write([]byte(swaggerDocsHTML))
+	_, _ = writer.Write([]byte(strings.Replace(swaggerDocsHTML, "__SWAGGER_NONCE__", nonce, 1)))
 }
 
 func (s *Server) openAPI(writer http.ResponseWriter, _ *http.Request) {

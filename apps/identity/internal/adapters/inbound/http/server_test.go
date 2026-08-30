@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,9 @@ func TestSwaggerDocsHasSecurityHeaders(t *testing.T) {
 	}
 	if recorder.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatal("expected nosniff header")
+	}
+	if !strings.Contains(recorder.Body.String(), "nonce=") {
+		t.Fatal("expected nonce on Swagger bootstrap script")
 	}
 	if recorder.Body.String() == "" {
 		t.Fatal("expected Swagger UI document")
