@@ -1,3 +1,5 @@
+environment: staging
+replicaCount: 2
 config:
   mailerMode: smtp
   testMailerEnabled: false
@@ -5,6 +7,10 @@ config:
   smtpPort: 2525
   smtpFrom: identity-staging@example.test
   publicAppURL: https://staging.example.test
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  signingKeyHistoryDir: /var/run/secrets/identity/history
+  trustProxyHeaders: true
 secret:
-  smtpUsername: ""
-  smtpPassword: ""
+  create: false
+  existingSecret: identity-staging-external
+  signingKeyHistoryExistingSecret: identity-staging-signing-key-history

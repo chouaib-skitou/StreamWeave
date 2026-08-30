@@ -1,3 +1,9 @@
+environment: production
+replicaCount: 2
+secret:
+  create: false
+  existingSecret: identity-external
+  signingKeyHistoryExistingSecret: identity-signing-key-history
 config:
   mailerMode: smtp
   testMailerEnabled: false
@@ -5,6 +11,16 @@ config:
   smtpPort: 587
   smtpFrom: identity@example.com
   publicAppURL: https://app.example.com
-secret:
-  smtpUsername: api
-  smtpPassword: ""
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  signingKeyHistoryDir: /var/run/secrets/identity/history
+  trustProxyHeaders: true
+networkPolicy:
+  allowedIngressNamespaceLabels:
+    kubernetes.io/metadata.name: ecommerce-gateway
+  allowedIngressPodLabels:
+    app.kubernetes.io/name: gateway
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  monitoringPodLabels:
+    app.kubernetes.io/name: prometheus
+  allowSMTP: true

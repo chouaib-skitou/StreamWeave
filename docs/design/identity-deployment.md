@@ -17,6 +17,8 @@ Required configuration names:
 | `IDENTITY_KAFKA_BROKERS` | Audit event broker addresses. | No |
 | `IDENTITY_SIGNING_KEY_PATH` | Mounted active private-key reference. | Path only; file is secret |
 | `IDENTITY_SIGNING_KEY_ID` | Active public key ID. | No |
+| `IDENTITY_SIGNING_KEY_HISTORY_DIR` | Read-only directory containing retained `<kid>.pub.pem` keys during rotation overlap. | Path only; files are secret-adjacent public material |
+| `IDENTITY_TRUST_PROXY_HEADERS` | Trust the first `X-Forwarded-For` address only behind the restricted gateway. | No |
 | `IDENTITY_DEMO_REGISTRATION_ENABLED` | Demo-registration feature flag; false in production. | No |
 | `IDENTITY_OTEL_ENDPOINT` | OTLP collector endpoint. | No |
 | `IDENTITY_LOG_LEVEL` | Structured log level. | No |
@@ -31,8 +33,12 @@ Required configuration names:
 | `IDENTITY_RATE_REFRESH_PER_MINUTE` | Refresh attempts per session family per minute; default `30`. | No |
 | `IDENTITY_RATE_RESET_PER_HOUR` | Password-reset requests per account and source prefix per hour; default `3`. | No |
 | `IDENTITY_RATE_SERVICE_TOKEN_PER_MINUTE` | Service-token requests per principal and source prefix per minute; default `30`. | No |
+| `IDENTITY_RATE_LOGIN_SOURCE_PER_WINDOW` | Login requests per coarse source prefix per 15-minute window; default `30`. | No |
+| `IDENTITY_RATE_REFRESH_SOURCE_PER_MINUTE` | Refresh requests per coarse source prefix per minute; default `120`. | No |
+| `IDENTITY_RATE_RESET_SOURCE_PER_HOUR` | Password-reset requests per coarse source prefix per hour; default `12`. | No |
+| `IDENTITY_RATE_SERVICE_SOURCE_PER_MINUTE` | Service-token requests per coarse source prefix per minute; default `120`. | No |
 
-Initial rate-limit defaults are configuration, not hard-coded policy: five failed login attempts per 15 minutes per account and source prefix, 30 refresh attempts per minute per session family, three password-reset requests per hour per account and source prefix, and 30 service-token requests per minute per principal and source prefix. Responses use `429` after a limit is exceeded. Redis outage follows the fail-closed credential-issuance policy in the PRD and architecture design.
+Initial rate-limit defaults are configuration, not hard-coded policy: account, coarse source-prefix, and endpoint-global buckets are incremented atomically in one Redis script. Login account limits are five per 15 minutes, refresh account limits are 30 per minute, password-reset account limits are three per hour, and service-token account limits are 30 per minute. Source limits are independently configurable. Responses use `429` with `Retry-After: 60` after a limit is exceeded. Redis outage follows the fail-closed credential-issuance policy in the PRD and architecture design.
 
 ## Make and Script Contract
 
@@ -66,15 +72,15 @@ The Helm deployment must provide:
 
 - a dedicated ServiceAccount and least-privilege NetworkPolicy;
 - ClusterIP service with no public service-token route;
-- Secret references for database, Redis, and signing-key provider configuration;
+- Secret references for database, Redis, SMTP, and signing-key provider configuration; `secret.existingSecret` supports ExternalSecret-managed Secrets without rendering credentials;
 - ConfigMap for non-secret issuer, audience, feature flags, and telemetry settings;
 - startup, liveness, and readiness probes;
 - non-root security context and read-only filesystem where compatible;
 - CPU/memory requests and limits;
 - PodDisruptionBudget and a local one-replica-safe profile;
-- migration job or controlled migration hook with expand/migrate/contract compatibility;
+- pre-install/pre-upgrade migration Job with `IDENTITY_MIGRATIONS_ONLY=true`; application pods never run migrations at startup;
 - graceful termination period long enough to finish current HTTP work and flush telemetry;
-- explicit dependency egress only to PostgreSQL, Redis, Kafka, OTLP, and the configured SMTP relay.
+- explicit dependency egress only to DNS, PostgreSQL, Redis, Kafka, OTLP, and SMTP ports 587/2525; ingress is restricted to the configured gateway and monitoring namespaces.
 
 Readiness must fail when Identity cannot perform its responsibility, including missing signing configuration or PostgreSQL. Redis degradation is surfaced separately and follows the fail-closed revocation policy.
 
@@ -88,11 +94,11 @@ Structured JSON events include timestamp, level, service, message, request ID, t
 
 ### Metrics
 
-The initial dashboard covers authentication outcomes, refresh reuse, session revocation, JWT verification, rate limiting, outbox backlog/publication, database pool pressure, readiness, and dependency latency. Labels remain bounded and never contain email, user ID, token ID, or arbitrary error text.
+The dashboard covers HTTP outcomes by route, authentication outcomes, refresh outcomes/reuse, rate limiting, outbox backlog, database pool pressure, readiness, and dependency latency. Labels remain bounded and never contain email, user ID, token ID, IP address, or arbitrary error text.
 
 ### Traces
 
-HTTP spans connect to password verification, PostgreSQL transaction, session transition, audit/outbox insert, Kafka publication, and SMTP mail delivery. Sensitive request fields are excluded from span attributes.
+HTTP spans connect to PostgreSQL transactions, Kafka outbox publication, and SMTP delivery. Sensitive request fields, credentials, tokens, email bodies, and IP addresses are excluded from span attributes. Production and staging use TLS-capable OTLP export by default; local Compose explicitly enables `IDENTITY_OTEL_INSECURE=true`. If the OTLP collector is unavailable, the SDK remains non-blocking and business responses continue.
 
 ### Alerts
 

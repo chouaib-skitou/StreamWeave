@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const assignRole = `-- name: AssignRole :exec
@@ -79,6 +80,17 @@ WHERE r.name = 'admin' AND r.status = 'ACTIVE'
 
 func (q *Queries) CountActiveAdministrators(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countActiveAdministrators)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countPendingOutbox = `-- name: CountPendingOutbox :one
+SELECT count(*) FROM outbox_events WHERE published_at IS NULL
+`
+
+func (q *Queries) CountPendingOutbox(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingOutbox)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -569,6 +581,42 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 	return items, nil
 }
 
+const listUserRoleNames = `-- name: ListUserRoleNames :many
+SELECT ur.user_id, r.name
+FROM user_roles ur
+JOIN roles r ON r.id = ur.role_id
+WHERE ur.user_id = ANY($1::uuid[]) AND r.status = 'ACTIVE'
+ORDER BY ur.user_id, r.name
+`
+
+type ListUserRoleNamesRow struct {
+	UserID uuid.UUID `json:"user_id"`
+	Name   string    `json:"name"`
+}
+
+func (q *Queries) ListUserRoleNames(ctx context.Context, userIds []uuid.UUID) ([]ListUserRoleNamesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserRoleNames, pq.Array(userIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserRoleNamesRow{}
+	for rows.Next() {
+		var i ListUserRoleNamesRow
+		if err := rows.Scan(&i.UserID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserRoles = `-- name: ListUserRoles :many
 SELECT r.name AS role_name, p.name AS permission_name
 FROM user_roles ur
@@ -641,6 +689,135 @@ func (q *Queries) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]Lis
 			&i.RevokedAt,
 			&i.CreatedAt,
 			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserSessionsPage = `-- name: ListUserSessionsPage :many
+SELECT id, family_id, user_id, status, expires_at, revoked_at, created_at, last_used_at
+FROM sessions
+WHERE user_id = $1
+  AND ($2::timestamptz IS NULL
+       OR (created_at, id) < ($2::timestamptz, $3::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListUserSessionsPageParams struct {
+	UserID          uuid.UUID     `json:"user_id"`
+	CursorCreatedAt sql.NullTime  `json:"cursor_created_at"`
+	CursorID        uuid.NullUUID `json:"cursor_id"`
+	PageSize        int32         `json:"page_size"`
+}
+
+type ListUserSessionsPageRow struct {
+	ID         uuid.UUID    `json:"id"`
+	FamilyID   uuid.UUID    `json:"family_id"`
+	UserID     uuid.UUID    `json:"user_id"`
+	Status     string       `json:"status"`
+	ExpiresAt  time.Time    `json:"expires_at"`
+	RevokedAt  sql.NullTime `json:"revoked_at"`
+	CreatedAt  time.Time    `json:"created_at"`
+	LastUsedAt sql.NullTime `json:"last_used_at"`
+}
+
+func (q *Queries) ListUserSessionsPage(ctx context.Context, arg ListUserSessionsPageParams) ([]ListUserSessionsPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSessionsPage,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserSessionsPageRow{}
+	for rows.Next() {
+		var i ListUserSessionsPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FamilyID,
+			&i.UserID,
+			&i.Status,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersPage = `-- name: ListUsersPage :many
+SELECT u.id, u.email, u.email_normalized, u.password_hash, u.status,
+       u.email_verified_at, u.created_at, u.updated_at
+FROM users u
+WHERE ($1::text = '' OR u.status = $1)
+  AND ($2::text = '' OR EXISTS (
+    SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+    WHERE ur.user_id = u.id AND r.name = $2 AND r.status = 'ACTIVE'
+  ))
+  AND ($3::text = '' OR u.email_normalized LIKE $3 || '%' ESCAPE '\')
+  AND ($4::timestamptz IS NULL
+       OR (u.created_at, u.id) < ($4::timestamptz, $5::uuid))
+ORDER BY u.created_at DESC, u.id DESC
+LIMIT $6
+`
+
+type ListUsersPageParams struct {
+	Column1         string        `json:"column_1"`
+	Column2         string        `json:"column_2"`
+	Column3         string        `json:"column_3"`
+	CursorCreatedAt sql.NullTime  `json:"cursor_created_at"`
+	CursorID        uuid.NullUUID `json:"cursor_id"`
+	PageSize        int32         `json:"page_size"`
+}
+
+func (q *Queries) ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersPage,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.EmailNormalized,
+			&i.PasswordHash,
+			&i.Status,
+			&i.EmailVerifiedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

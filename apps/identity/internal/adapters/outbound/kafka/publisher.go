@@ -7,6 +7,8 @@ import (
 
 	identitypostgres "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/postgres"
 	segmentkafka "github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Publisher struct{ writer *segmentkafka.Writer }
@@ -22,18 +24,23 @@ func NewPublisher(brokers string) *Publisher {
 }
 
 func (p *Publisher) Publish(ctx context.Context, event identitypostgres.OutboxEvent) error {
+	ctx, span := otel.Tracer("identity/outbox").Start(ctx, "outbox publish")
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.system", "kafka"), attribute.String("messaging.operation.type", "publish"), attribute.String("identity.event_type", event.EventType))
 	return p.writer.WriteMessages(ctx, segmentkafka.Message{Key: []byte(event.AggregateID), Value: event.Payload, Headers: []segmentkafka.Header{{Key: "event_type", Value: []byte(event.EventType)}, {Key: "event_id", Value: []byte(event.ID.String())}}})
 }
 func (p *Publisher) Close() error { return p.writer.Close() }
 
 type Relay struct {
-	store     *identitypostgres.Store
-	publisher *Publisher
+	store           *identitypostgres.Store
+	publisher       *Publisher
+	publishObserver func(string)
 }
 
 func NewRelay(store *identitypostgres.Store, publisher *Publisher) *Relay {
 	return &Relay{store: store, publisher: publisher}
 }
+func (r *Relay) SetPublishObserver(observer func(string)) { r.publishObserver = observer }
 func (r *Relay) Run(ctx context.Context) error {
 	ticker := timeTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -54,14 +61,22 @@ func (r *Relay) publishBatch(ctx context.Context) error {
 	}
 	for _, event := range events {
 		if err := r.publisher.Publish(ctx, event); err != nil {
+			r.observePublish("error")
 			_ = r.store.MarkOutboxFailed(ctx, event.ID, boundedError(err))
 			return err
 		}
 		if err := r.store.MarkOutboxPublished(ctx, event.ID, time.Now().UTC()); err != nil {
+			r.observePublish("error")
 			return err
 		}
+		r.observePublish("success")
 	}
 	return nil
+}
+func (r *Relay) observePublish(outcome string) {
+	if r.publishObserver != nil {
+		r.publishObserver(outcome)
+	}
 }
 func boundedError(err error) string {
 	if err == nil {

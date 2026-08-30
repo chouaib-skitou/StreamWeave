@@ -3,7 +3,7 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ include "identity.fullname" . }}
 spec:
-  maxUnavailable: 1
+  minAvailable: {{ .Values.pdb.minAvailable | default 1 }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "identity.name" . }}

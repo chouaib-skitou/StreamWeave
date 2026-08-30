@@ -17,3 +17,11 @@ data:
   IDENTITY_SMTP_PORT: {{ .Values.config.smtpPort | quote }}
   IDENTITY_SMTP_FROM: {{ .Values.config.smtpFrom | quote }}
   IDENTITY_PUBLIC_APP_URL: {{ .Values.config.publicAppURL | quote }}
+  IDENTITY_OTEL_ENDPOINT: {{ .Values.config.otelEndpoint | quote }}
+  IDENTITY_OTEL_INSECURE: {{ .Values.config.otelInsecure | quote }}
+  IDENTITY_SIGNING_KEY_HISTORY_DIR: {{ .Values.config.signingKeyHistoryDir | quote }}
+  IDENTITY_TRUST_PROXY_HEADERS: {{ .Values.config.trustProxyHeaders | quote }}
+  IDENTITY_RATE_LOGIN_SOURCE_PER_WINDOW: {{ .Values.config.rateLoginSource | quote }}
+  IDENTITY_RATE_REFRESH_SOURCE_PER_MINUTE: {{ .Values.config.rateRefreshSource | quote }}
+  IDENTITY_RATE_RESET_SOURCE_PER_HOUR: {{ .Values.config.rateResetSource | quote }}
+  IDENTITY_RATE_SERVICE_SOURCE_PER_MINUTE: {{ .Values.config.rateServiceSource | quote }}

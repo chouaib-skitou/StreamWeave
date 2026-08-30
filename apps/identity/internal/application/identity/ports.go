@@ -60,6 +60,48 @@ type Store interface {
 	WithTransaction(context.Context, func(Transaction) error) error
 }
 
+// CollectionStore contains bounded collection queries. It is kept separate
+// from Store so existing adapters and tests can migrate without changing the
+// authentication contract.
+type CollectionStore interface {
+	ListUsersPage(context.Context, UserPageQuery) (UserPage, error)
+	ListSessionsPage(context.Context, uuid.UUID, SessionPageQuery) (SessionPage, error)
+}
+
+type UserPageQuery struct {
+	Status          string
+	Role            string
+	EmailPrefix     string
+	CursorCreatedAt *time.Time
+	CursorID        uuid.UUID
+	Limit           int32
+}
+
+type UserPageItem struct {
+	User  domain.User
+	Roles []string
+}
+
+type UserPage struct {
+	Items       []UserPageItem
+	HasMore     bool
+	LastCreated time.Time
+	LastID      uuid.UUID
+}
+
+type SessionPageQuery struct {
+	CursorCreatedAt *time.Time
+	CursorID        uuid.UUID
+	Limit           int32
+}
+
+type SessionPage struct {
+	Items       []domain.Session
+	HasMore     bool
+	LastCreated time.Time
+	LastID      uuid.UUID
+}
+
 type AuditRecord struct {
 	ID            uuid.UUID
 	ActorID       *string
@@ -99,6 +141,10 @@ type Clock interface {
 
 type Limiter interface {
 	Allow(context.Context, string) (bool, error)
+}
+
+type DimensionLimiter interface {
+	AllowMany(context.Context, []string) (bool, error)
 }
 
 type Revocations interface {

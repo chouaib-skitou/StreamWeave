@@ -1,0 +1,42 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "identity.fullname" . }}-migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "identity.name" . }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "identity.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: migration
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/identity"]
+          envFrom:
+            - configMapRef: { name: {{ include "identity.fullname" . }}-config }
+            - secretRef: { name: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }} }
+          env:
+            - name: IDENTITY_HTTP_ADDR
+              value: ":8080"
+            - name: IDENTITY_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            - name: IDENTITY_MIGRATIONS_ONLY
+              value: "true"
+            - name: IDENTITY_RUN_MIGRATIONS
+              value: "true"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+{{- end }}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	httpadapter "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/inbound/http"
 	identitycrypto "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/crypto"
@@ -18,6 +19,7 @@ import (
 	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/config"
 	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/logging"
 	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/runtime"
+	"github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/platform/telemetry"
 )
 
 func main() {
@@ -34,6 +36,15 @@ func run() error {
 	}
 	logger := logging.New(cfg.LogLevel)
 	logger.Info("identity starting", "summary", cfg.SafeSummary())
+	shutdownTelemetry, err := telemetry.Setup(context.Background(), cfg.OTelEndpoint, cfg.Environment, cfg.OTelInsecure)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+		_ = shutdownTelemetry(shutdownCtx)
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -54,6 +65,10 @@ func run() error {
 			return err
 		}
 	}
+	if cfg.MigrationsOnly {
+		logger.Info("identity migrations completed")
+		return nil
+	}
 	cache, err := identityredis.Open(cfg.RedisURL)
 	if err != nil {
 		return err
@@ -61,7 +76,7 @@ func run() error {
 	defer cache.Close()
 	var signer *identitycrypto.Signer
 	if cfg.SigningKeyPath != "" {
-		signer, err = identitycrypto.LoadSigner(cfg.SigningKeyPath, cfg.SigningKeyID, cfg.Issuer)
+		signer, err = identitycrypto.LoadSignerWithHistory(cfg.SigningKeyPath, cfg.SigningKeyID, cfg.Issuer, cfg.SigningKeyHistoryDir)
 	} else {
 		signer, err = identitycrypto.GenerateSigner(cfg.SigningKeyID, cfg.Issuer)
 	}
@@ -69,7 +84,7 @@ func run() error {
 		return err
 	}
 	store := postgres.NewStore(database)
-	limiter := identityredis.NewRateLimiter(cache, cfg.RateLoginFailures, cfg.RateRefreshMinute, cfg.RateResetHour, cfg.RateServiceMinute)
+	limiter := identityredis.NewRateLimiterWithSources(cache, cfg.RateLoginFailures, cfg.RateRefreshMinute, cfg.RateResetHour, cfg.RateServiceMinute, cfg.RateLoginSource, cfg.RateRefreshSource, cfg.RateResetSource, cfg.RateServiceSource)
 	var mailer identityapp.Mailer
 	var mailbox identityapp.Mailbox
 	if cfg.MailerMode == "smtp" {
@@ -97,6 +112,26 @@ func run() error {
 		}
 	}()
 	server := httpadapter.NewApplicationServer(cfg.HTTPAddr, cfg.MetricsPath, cfg.ReadinessTimeout, healthService, logger, identityService, signer, cache, cfg.HumanAudience, cfg.DemoRegistration, cfg.TestMailerEnabled, mailbox)
+	server.SetTrustProxyHeaders(cfg.TrustProxyHeaders)
+	server.SetDBStatsProvider(database.DB().Stats)
+	relay.SetPublishObserver(server.ObserveOutboxPublish)
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			countCtx, cancel := context.WithTimeout(ctx, cfg.ReadinessTimeout)
+			count, countErr := store.PendingOutboxCount(countCtx)
+			cancel()
+			if countErr == nil {
+				server.SetOutboxBacklog(count)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 	serverErrors := make(chan error, 1)
 	go func() { serverErrors <- server.Start() }()
 

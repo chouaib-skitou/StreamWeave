@@ -15,6 +15,7 @@ type Querier interface {
 	ConsumeResetToken(ctx context.Context, arg ConsumeResetTokenParams) (int64, error)
 	ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) (int64, error)
 	CountActiveAdministrators(ctx context.Context) (int64, error)
+	CountPendingOutbox(ctx context.Context) (int64, error)
 	CreateResetToken(ctx context.Context, arg CreateResetTokenParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) (CreateSessionRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -31,8 +32,11 @@ type Querier interface {
 	InsertSecurityAudit(ctx context.Context, arg InsertSecurityAuditParams) error
 	ListActiveServiceCredentials(ctx context.Context, arg ListActiveServiceCredentialsParams) ([]ServicePrincipalCredential, error)
 	ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxEvent, error)
+	ListUserRoleNames(ctx context.Context, userIds []uuid.UUID) ([]ListUserRoleNamesRow, error)
 	ListUserRoles(ctx context.Context, userID uuid.UUID) ([]ListUserRolesRow, error)
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]ListUserSessionsRow, error)
+	ListUserSessionsPage(ctx context.Context, arg ListUserSessionsPageParams) ([]ListUserSessionsPageRow, error)
+	ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([]User, error)
 	MarkEmailVerified(ctx context.Context, arg MarkEmailVerifiedParams) error
 	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
 	MarkOutboxPublished(ctx context.Context, arg MarkOutboxPublishedParams) error

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/mail"
 	"sort"
 	"strings"
@@ -57,9 +58,9 @@ func NewService(options Options) (*Service, error) {
 	return &Service{store: options.Store, passwords: options.Passwords, tokens: options.Tokens, clock: options.Clock, limiter: options.Limiter, revocations: options.Revocations, mailer: options.Mailer, humanAudience: options.HumanAudience, machineAudience: options.MachineAudience}, nil
 }
 
-type RegisterInput struct{ Email, Password string }
-type LoginInput struct{ Email, Password, CorrelationID string }
-type RefreshInput struct{ RefreshToken, CorrelationID string }
+type RegisterInput struct{ Email, Password, SourceKey string }
+type LoginInput struct{ Email, Password, CorrelationID, SourceKey string }
+type RefreshInput struct{ RefreshToken, CorrelationID, SourceKey string }
 type Credentials struct {
 	AccessToken, RefreshToken              string
 	AccessTokenExpiresIn, RefreshExpiresIn int
@@ -73,7 +74,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domain.Use
 	if err := validateCredentials(input.Email, input.Password); err != nil {
 		return domain.User{}, err
 	}
-	if err := s.allow(ctx, "register:"+identityKey(domain.NormalizeEmail(input.Email))); err != nil {
+	if err := s.allowDimensions(ctx, "register", domain.NormalizeEmail(input.Email), input.SourceKey); err != nil {
 		return domain.User{}, err
 	}
 	hash, err := s.passwords.Hash(input.Password)
@@ -110,7 +111,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (Credentials, dom
 	if err := validateCredentials(input.Email, input.Password); err != nil {
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
-	if err := s.allow(ctx, "login:"+identityKey(domain.NormalizeEmail(input.Email))); err != nil {
+	if err := s.allowDimensions(ctx, "login", domain.NormalizeEmail(input.Email), input.SourceKey); err != nil {
 		return Credentials{}, domain.User{}, nil, err
 	}
 	user, err := s.store.FindUserByEmail(ctx, domain.NormalizeEmail(input.Email))
@@ -129,7 +130,7 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 	if input.RefreshToken == "" {
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
-	if err := s.allow(ctx, "refresh:"+identityKey(input.RefreshToken)); err != nil {
+	if err := s.allowDimensions(ctx, "refresh", input.RefreshToken, input.SourceKey); err != nil {
 		return Credentials{}, domain.User{}, nil, err
 	}
 	session, err := s.store.FindSessionByRefreshHash(ctx, s.tokens.HashOpaque(input.RefreshToken))
@@ -142,8 +143,16 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
 	if !session.IsUsable(now) || user.Status != domain.UserActive {
-		_ = s.store.WithTransaction(ctx, func(tx Transaction) error { return tx.RevokeSessionFamily(ctx, session.FamilyID, now, "refresh_reuse") })
-		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
+		err := s.store.WithTransaction(ctx, func(tx Transaction) error {
+			if err := tx.RevokeSessionFamily(ctx, session.FamilyID, now, "refresh_reuse"); err != nil {
+				return err
+			}
+			return s.recordAudit(ctx, tx, auditInput{Action: "refresh.reuse_detected", Outcome: "failure", ActorID: userRef(user.ID), ActorType: "user", TargetID: userRef(session.ID), CorrelationID: input.CorrelationID, At: now})
+		})
+		if err != nil {
+			return Credentials{}, domain.User{}, nil, domain.ErrDependency
+		}
+		return Credentials{}, domain.User{}, nil, fmt.Errorf("%w: %w", domain.ErrInvalidCredentials, domain.ErrRefreshReuse)
 	}
 	roles, err := s.store.UserRoles(ctx, user.ID)
 	if err != nil {
@@ -170,7 +179,10 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 		}
 		if rotated != 1 {
 			reuseDetected = true
-			return nil
+			if err := tx.RevokeSessionFamily(ctx, session.FamilyID, now, "refresh_reuse"); err != nil {
+				return err
+			}
+			return s.recordAudit(ctx, tx, auditInput{Action: "refresh.reuse_detected", Outcome: "failure", ActorID: userRef(user.ID), ActorType: "user", TargetID: userRef(session.ID), CorrelationID: input.CorrelationID, At: now})
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "refresh.succeeded", Outcome: "success", ActorID: userRef(user.ID), ActorType: "user", TargetID: userRef(session.ID), CorrelationID: input.CorrelationID, At: now})
 	})
@@ -178,8 +190,7 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 		return Credentials{}, domain.User{}, nil, err
 	}
 	if reuseDetected {
-		_ = s.store.WithTransaction(ctx, func(tx Transaction) error { return tx.RevokeSessionFamily(ctx, session.FamilyID, now, "refresh_reuse") })
-		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
+		return Credentials{}, domain.User{}, nil, fmt.Errorf("%w: %v", domain.ErrInvalidCredentials, domain.ErrRefreshReuse)
 	}
 	return Credentials{AccessToken: access, RefreshToken: refresh, AccessTokenExpiresIn: int(accessTokenTTL.Seconds()), RefreshExpiresIn: int(refreshTokenTTL.Seconds())}, user, roles, nil
 }
@@ -230,6 +241,22 @@ func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID, correlationID
 
 func (s *Service) Sessions(ctx context.Context, userID uuid.UUID) ([]domain.Session, error) {
 	return s.store.ListSessions(ctx, userID)
+}
+
+func (s *Service) SessionsPage(ctx context.Context, userID uuid.UUID, query SessionPageQuery) (SessionPage, error) {
+	store, ok := s.store.(CollectionStore)
+	if !ok {
+		return SessionPage{}, domain.ErrDependency
+	}
+	return store.ListSessionsPage(ctx, userID, query)
+}
+
+func (s *Service) UsersPage(ctx context.Context, query UserPageQuery) (UserPage, error) {
+	store, ok := s.store.(CollectionStore)
+	if !ok {
+		return UserPage{}, domain.ErrDependency
+	}
+	return store.ListUsersPage(ctx, query)
 }
 
 // IsSessionActive checks the persistent session state before accepting a human token.
@@ -297,7 +324,15 @@ func (s *Service) RemoveRole(ctx context.Context, targetID, actorID uuid.UUID, r
 }
 
 func (s *Service) RequestPasswordReset(ctx context.Context, email, correlationID string) error {
-	if err := s.allow(ctx, "reset:"+identityKey(domain.NormalizeEmail(email))); err != nil {
+	return s.requestPasswordReset(ctx, email, "", correlationID)
+}
+
+func (s *Service) RequestPasswordResetFromSource(ctx context.Context, email, sourceKey, correlationID string) error {
+	return s.requestPasswordReset(ctx, email, sourceKey, correlationID)
+}
+
+func (s *Service) requestPasswordReset(ctx context.Context, email, sourceKey, correlationID string) error {
+	if err := s.allowDimensions(ctx, "reset", domain.NormalizeEmail(email), sourceKey); err != nil {
 		return err
 	}
 	user, err := s.store.FindUserByEmail(ctx, domain.NormalizeEmail(email))
@@ -378,10 +413,18 @@ func (s *Service) ConfirmEmail(ctx context.Context, token, correlationID string)
 }
 
 func (s *Service) ServiceToken(ctx context.Context, clientID, secret string, requested []string, correlationID string) (MachineCredentials, error) {
+	return s.serviceToken(ctx, clientID, secret, requested, "", correlationID)
+}
+
+func (s *Service) ServiceTokenFromSource(ctx context.Context, clientID, secret string, requested []string, sourceKey, correlationID string) (MachineCredentials, error) {
+	return s.serviceToken(ctx, clientID, secret, requested, sourceKey, correlationID)
+}
+
+func (s *Service) serviceToken(ctx context.Context, clientID, secret string, requested []string, sourceKey, correlationID string) (MachineCredentials, error) {
 	if strings.TrimSpace(clientID) == "" || secret == "" || len(requested) == 0 {
 		return MachineCredentials{}, domain.ErrInvalidCredentials
 	}
-	if err := s.allow(ctx, "service-token:"+identityKey(clientID)); err != nil {
+	if err := s.allowDimensions(ctx, "service-token", clientID, sourceKey); err != nil {
 		return MachineCredentials{}, err
 	}
 	principal, err := s.store.FindServicePrincipal(ctx, clientID)
@@ -462,6 +505,29 @@ func (s *Service) allow(ctx context.Context, key string) error {
 	}
 	if !allowed {
 		return domain.ErrRateLimited
+	}
+	return nil
+}
+
+func (s *Service) allowDimensions(ctx context.Context, kind, account, source string) error {
+	keys := []string{kind + "-account:" + identityKey(account), kind + "-global:" + kind}
+	if strings.TrimSpace(source) != "" {
+		keys = append(keys, kind+"-source:"+identityKey(source))
+	}
+	if limiter, ok := s.limiter.(DimensionLimiter); ok {
+		allowed, err := limiter.AllowMany(ctx, keys)
+		if err != nil {
+			return domain.ErrDependency
+		}
+		if !allowed {
+			return domain.ErrRateLimited
+		}
+		return nil
+	}
+	for _, key := range keys {
+		if err := s.allow(ctx, key); err != nil {
+			return err
+		}
 	}
 	return nil
 }

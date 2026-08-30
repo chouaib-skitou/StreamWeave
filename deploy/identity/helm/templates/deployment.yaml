@@ -3,7 +3,10 @@ kind: Deployment
 metadata:
   name: {{ include "identity.fullname" . }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "identity.name" . }}
@@ -13,6 +16,7 @@ spec:
         app.kubernetes.io/name: {{ include "identity.name" . }}
     spec:
       serviceAccountName: {{ include "identity.fullname" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         runAsNonRoot: true
         seccompProfile: { type: RuntimeDefault }
@@ -25,16 +29,23 @@ spec:
               containerPort: 8080
           envFrom:
             - configMapRef: { name: {{ include "identity.fullname" . }}-config }
-            - secretRef: { name: {{ include "identity.fullname" . }}-secret }
+            - secretRef: { name: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }} }
           env:
             - name: IDENTITY_HTTP_ADDR
               value: ":8080"
             - name: IDENTITY_ENVIRONMENT
-              value: production
+              value: {{ .Values.environment | quote }}
+            - name: IDENTITY_RUN_MIGRATIONS
+              value: "false"
           volumeMounts:
             - name: signing-key
               mountPath: /var/run/secrets/identity
               readOnly: true
+{{- if .Values.secret.signingKeyHistoryExistingSecret }}
+            - name: signing-key-history
+              mountPath: /var/run/secrets/identity/history
+              readOnly: true
+{{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -46,7 +57,12 @@ spec:
       volumes:
         - name: signing-key
           secret:
-            secretName: {{ include "identity.fullname" . }}-secret
+            secretName: {{ .Values.secret.existingSecret | default (printf "%s-secret" (include "identity.fullname" .)) }}
             items:
               - key: signing-key.pem
                 path: signing-key.pem
+{{- if .Values.secret.signingKeyHistoryExistingSecret }}
+        - name: signing-key-history
+          secret:
+            secretName: {{ .Values.secret.signingKeyHistoryExistingSecret }}
+{{- end }}

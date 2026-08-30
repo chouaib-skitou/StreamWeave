@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Clock struct{}
@@ -89,6 +92,9 @@ func NewConfiguredSMTPMailer(host string, port int, username, password, from, pu
 }
 
 func (m *SMTPMailer) Send(ctx context.Context, kind, recipient, token string) error {
+	ctx, span := otel.Tracer("identity/smtp").Start(ctx, "smtp send")
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.system", "smtp"), attribute.String("identity.mail_kind", kind))
 	if err := ctx.Err(); err != nil {
 		return err
 	}

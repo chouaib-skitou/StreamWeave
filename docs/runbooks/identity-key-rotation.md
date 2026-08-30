@@ -12,12 +12,11 @@ Rotate Ed25519 signing keys without invalidating still-valid access tokens unexp
 
 ## Procedure
 
-1. Load the new key as a standby key and verify its public representation locally.
-2. Publish both old and new public keys through JWKS.
-3. Mark the new key active for new token issuance.
-4. Confirm new tokens use the new `kid` and old tokens still verify.
-5. Retain the old public key for at least the maximum access-token TTL and configured clock-skew allowance.
-6. Remove the old public key only after the overlap window and verify no old-key traffic remains.
+1. Provision the new active private key at the configured secret-file/KMS boundary and export its public key as `<old-kid>.pub.pem` files in `IDENTITY_SIGNING_KEY_HISTORY_DIR` for every still-valid old key.
+2. Deploy with the new `IDENTITY_SIGNING_KEY_ID`; the service publishes the active key and all `.pub.pem` history keys through JWKS.
+3. Confirm new tokens use the new `kid`, old tokens still verify, and the JWKS response contains no private material.
+4. Retain the old public key for at least the maximum access-token TTL and configured clock-skew allowance.
+5. Remove the old `.pub.pem` file only after the overlap window and verify no old-key traffic remains. Never reuse a published `kid`.
 
 ## Abort and recovery
 

@@ -43,6 +43,27 @@ func TestLoadRejectsMalformedDuration(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsMalformedBoolean(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":    "postgres://identity:secret@localhost/identity",
+		"IDENTITY_MIGRATIONS_ONLY": "sometimes",
+	})
+	if err == nil {
+		t.Fatal("expected malformed boolean to be rejected")
+	}
+}
+
+func TestLoadRejectsMigrationsOnlyWithoutMigrations(t *testing.T) {
+	_, err := Load(mapSource{
+		"IDENTITY_DATABASE_URL":    "postgres://identity:secret@localhost/identity",
+		"IDENTITY_MIGRATIONS_ONLY": "true",
+		"IDENTITY_RUN_MIGRATIONS":  "false",
+	})
+	if err == nil {
+		t.Fatal("expected migrations-only mode without migrations to be rejected")
+	}
+}
+
 func TestValidateRejectsNonPostgresURL(t *testing.T) {
 	cfg := Config{HTTPAddr: ":8080", DatabaseURL: "redis://localhost", MigrationDir: "migrations", ShutdownTimeout: time.Second, ReadinessTimeout: time.Second, MetricsPath: "/metrics"}
 	if err := cfg.Validate(); err == nil {

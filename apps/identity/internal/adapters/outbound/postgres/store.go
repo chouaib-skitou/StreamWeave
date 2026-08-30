@@ -13,6 +13,8 @@ import (
 	domain "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/domain/identity"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Store struct {
@@ -28,6 +30,11 @@ type OutboxEvent struct {
 	Payload       []byte
 	Headers       []byte
 	CreatedAt     time.Time
+}
+
+func (s *Store) PendingOutboxCount(ctx context.Context) (int64, error) {
+	count, err := s.q.CountPendingOutbox(ctx)
+	return count, mapDatabaseError(err)
 }
 
 func (s *Store) PendingOutbox(ctx context.Context, limit int32) ([]OutboxEvent, error) {
@@ -103,6 +110,63 @@ func (s *Store) ListSessions(ctx context.Context, userID uuid.UUID) ([]domain.Se
 	return result, nil
 }
 
+func (s *Store) ListSessionsPage(ctx context.Context, userID uuid.UUID, query appidentity.SessionPageQuery) (appidentity.SessionPage, error) {
+	rows, err := s.q.ListUserSessionsPage(ctx, generated.ListUserSessionsPageParams{
+		UserID: userID, CursorCreatedAt: nullableTimeValue(query.CursorCreatedAt), CursorID: nullableUUIDValue(query.CursorID), PageSize: query.Limit + 1,
+	})
+	if err != nil {
+		return appidentity.SessionPage{}, mapDatabaseError(err)
+	}
+	page := appidentity.SessionPage{Items: make([]domain.Session, 0, len(rows))}
+	for _, row := range rows {
+		page.Items = append(page.Items, mapSession(row.ID, row.FamilyID, row.UserID, row.Status, row.ExpiresAt, row.RevokedAt, row.CreatedAt, row.LastUsedAt))
+	}
+	if len(page.Items) > int(query.Limit) {
+		page.HasMore = true
+		page.Items = page.Items[:query.Limit]
+	}
+	if len(page.Items) > 0 {
+		last := page.Items[len(page.Items)-1]
+		page.LastCreated, page.LastID = last.CreatedAt, last.ID
+	}
+	return page, nil
+}
+
+func (s *Store) ListUsersPage(ctx context.Context, query appidentity.UserPageQuery) (appidentity.UserPage, error) {
+	rows, err := s.q.ListUsersPage(ctx, generated.ListUsersPageParams{
+		Column1: query.Status, Column2: query.Role, Column3: query.EmailPrefix,
+		CursorCreatedAt: nullableTimeValue(query.CursorCreatedAt), CursorID: nullableUUIDValue(query.CursorID), PageSize: query.Limit + 1,
+	})
+	if err != nil {
+		return appidentity.UserPage{}, mapDatabaseError(err)
+	}
+	hasMore := len(rows) > int(query.Limit)
+	if hasMore {
+		rows = rows[:query.Limit]
+	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	roleRows, err := s.q.ListUserRoleNames(ctx, ids)
+	if err != nil {
+		return appidentity.UserPage{}, mapDatabaseError(err)
+	}
+	roles := make(map[uuid.UUID][]string, len(ids))
+	for _, row := range roleRows {
+		roles[row.UserID] = append(roles[row.UserID], row.Name)
+	}
+	page := appidentity.UserPage{HasMore: hasMore, Items: make([]appidentity.UserPageItem, 0, len(rows))}
+	for _, row := range rows {
+		page.Items = append(page.Items, appidentity.UserPageItem{User: mapUser(row), Roles: roles[row.ID]})
+	}
+	if len(page.Items) > 0 {
+		last := page.Items[len(page.Items)-1].User
+		page.LastCreated, page.LastID = last.CreatedAt, last.ID
+	}
+	return page, nil
+}
+
 func (s *Store) FindServicePrincipal(ctx context.Context, clientID string) (domain.ServicePrincipal, error) {
 	principal, err := s.q.GetServicePrincipal(ctx, clientID)
 	if err != nil {
@@ -138,6 +202,9 @@ func (s *Store) FindVerificationToken(ctx context.Context, hash []byte) (domain.
 }
 
 func (s *Store) WithTransaction(ctx context.Context, fn func(appidentity.Transaction) error) error {
+	ctx, span := otel.Tracer("identity/postgresql").Start(ctx, "postgres transaction")
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "postgresql"))
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return mapDatabaseError(err)
@@ -246,6 +313,20 @@ func nullableTime(value sql.NullTime) *time.Time {
 	}
 	result := value.Time
 	return &result
+}
+
+func nullableTimeValue(value *time.Time) sql.NullTime {
+	if value == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: value.UTC(), Valid: true}
+}
+
+func nullableUUIDValue(value uuid.UUID) uuid.NullUUID {
+	if value == uuid.Nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: value, Valid: true}
 }
 func nullableString(value *string) sql.NullString {
 	if value == nil {

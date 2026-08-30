@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,18 @@ type errorLimiter struct{}
 
 func (errorLimiter) Allow(context.Context, string) (bool, error) {
 	return false, errors.New("redis unavailable")
+}
+
+type dimensionLimiter struct {
+	allowed bool
+	err     error
+	keys    []string
+}
+
+func (l *dimensionLimiter) Allow(context.Context, string) (bool, error) { return l.allowed, l.err }
+func (l *dimensionLimiter) AllowMany(_ context.Context, keys []string) (bool, error) {
+	l.keys = append([]string(nil), keys...)
+	return l.allowed, l.err
 }
 
 type recordingMailer struct {
@@ -121,6 +134,51 @@ func (s *fakeStore) ListSessions(_ context.Context, id uuid.UUID) ([]domain.Sess
 		}
 	}
 	return result, nil
+}
+func (s *fakeStore) ListUsersPage(_ context.Context, query UserPageQuery) (UserPage, error) {
+	page := UserPage{}
+	for id, user := range s.users {
+		if query.Status != "" && string(user.Status) != query.Status {
+			continue
+		}
+		if query.EmailPrefix != "" && !strings.HasPrefix(user.EmailNormalized, query.EmailPrefix) {
+			continue
+		}
+		roles := roleNames(s.roles[id])
+		if query.Role != "" {
+			found := false
+			for _, role := range roles {
+				if role == query.Role {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+		page.Items = append(page.Items, UserPageItem{User: user, Roles: roles})
+	}
+	if int32(len(page.Items)) > query.Limit {
+		page.HasMore = true
+		page.Items = page.Items[:query.Limit]
+	}
+	return page, nil
+}
+func (s *fakeStore) ListSessionsPage(_ context.Context, id uuid.UUID, query SessionPageQuery) (SessionPage, error) {
+	sessions, err := s.ListSessions(context.Background(), id)
+	if err != nil {
+		return SessionPage{}, err
+	}
+	page := SessionPage{Items: sessions}
+	if int32(len(page.Items)) > query.Limit {
+		page.HasMore = true
+		page.Items = page.Items[:query.Limit]
+	}
+	if len(page.Items) > 0 {
+		page.LastCreated, page.LastID = page.Items[len(page.Items)-1].CreatedAt, page.Items[len(page.Items)-1].ID
+	}
+	return page, nil
 }
 func (s *fakeStore) FindServicePrincipal(context.Context, string) (domain.ServicePrincipal, error) {
 	if s.principal.ID == uuid.Nil {
@@ -330,6 +388,26 @@ func TestRegistrationRateLimitAndValidation(t *testing.T) {
 	}
 }
 
+func TestSourceAwareLimiterUsesAtomicDimensions(t *testing.T) {
+	store := newFakeStore()
+	limiter := &dimensionLimiter{allowed: true}
+	service := newServiceForTest(t, store, limiter)
+	if _, err := service.Register(context.Background(), RegisterInput{Email: "source@example.test", Password: "correct horse battery staple", SourceKey: "192.0.2.0/24"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(limiter.keys) != 3 || !strings.Contains(limiter.keys[0], "register-account:") || !strings.Contains(limiter.keys[1], "register-global:") || !strings.Contains(limiter.keys[2], "register-source:") {
+		t.Fatalf("unexpected limiter dimensions: %v", limiter.keys)
+	}
+	limiter.allowed = false
+	if _, err := service.Register(context.Background(), RegisterInput{Email: "blocked@example.test", Password: "correct horse battery staple", SourceKey: "192.0.2.0/24"}); !errors.Is(err, domain.ErrRateLimited) {
+		t.Fatalf("blocked source: %v", err)
+	}
+	limiter.err = errors.New("redis unavailable")
+	if _, err := service.Register(context.Background(), RegisterInput{Email: "error@example.test", Password: "correct horse battery staple", SourceKey: "192.0.2.0/24"}); !errors.Is(err, domain.ErrDependency) {
+		t.Fatalf("limiter failure: %v", err)
+	}
+}
+
 func TestAdministrativeRecoveryAndMachineFlows(t *testing.T) {
 	store := newFakeStore()
 	service := newServiceForTest(t, store, allowAll{})
@@ -363,6 +441,9 @@ func TestAdministrativeRecoveryAndMachineFlows(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 	if err := service.RequestPasswordReset(ctx, "missing@example.test", "corr"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RequestPasswordResetFromSource(ctx, "missing-source@example.test", "192.0.2.0/24", "corr"); err != nil {
 		t.Fatal(err)
 	}
 	if err := service.RequestPasswordReset(ctx, user.Email, "corr"); err != nil {
@@ -409,6 +490,9 @@ func TestAdministrativeRecoveryAndMachineFlows(t *testing.T) {
 	}
 	if result, err := service.ServiceToken(ctx, "orders", "secret", []string{"orders:read"}, "corr"); err != nil || result.AccessToken == "" {
 		t.Fatalf("machine token: %v", err)
+	}
+	if result, err := service.ServiceTokenFromSource(ctx, "orders", "secret", []string{"orders:read"}, "192.0.2.0/24", "corr"); err != nil || result.AccessToken == "" {
+		t.Fatalf("source machine token: %v", err)
 	}
 	store.principal.Status = "DISABLED"
 	if _, err := service.ServiceToken(ctx, "orders", "secret", []string{"orders:read"}, "corr"); !errors.Is(err, domain.ErrInvalidCredentials) {
@@ -522,6 +606,24 @@ func TestSessionListingLogoutAndRecoveryOutcomes(t *testing.T) {
 	}
 	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); err == nil {
 		t.Fatal("revoked session refreshed")
+	}
+}
+
+func TestBoundedCollectionQueriesDelegateToCollectionStore(t *testing.T) {
+	store := newFakeStore()
+	service := newServiceForTest(t, store, nil)
+	user := domain.User{ID: uuid.New(), Email: "alice@example.test", EmailNormalized: "alice@example.test", Status: domain.UserActive, CreatedAt: time.Now().UTC()}
+	store.users[user.ID], store.byEmail[user.EmailNormalized] = user, user.ID
+	store.roles[user.ID] = []domain.RolePermission{{Role: "admin", Scope: "identity:users:read"}}
+	page, err := service.UsersPage(context.Background(), UserPageQuery{Role: "admin", Limit: 10})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Roles[0] != "admin" {
+		t.Fatalf("users page: %+v %v", page, err)
+	}
+	sessionID := uuid.New()
+	store.sessions[sessionID] = domain.Session{ID: sessionID, UserID: user.ID, Status: domain.SessionActive, CreatedAt: user.CreatedAt, ExpiresAt: user.CreatedAt.Add(time.Hour)}
+	sessions, err := service.SessionsPage(context.Background(), user.ID, SessionPageQuery{Limit: 10})
+	if err != nil || len(sessions.Items) != 1 {
+		t.Fatalf("sessions page: %+v %v", sessions, err)
 	}
 }
 

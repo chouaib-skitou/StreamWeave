@@ -12,6 +12,16 @@ import (
 
 type Client struct{ client *redis.Client }
 
+var allowManyScript = redis.NewScript(`
+local allowed = 1
+for index, key in ipairs(KEYS) do
+  local count = redis.call('INCR', key)
+  if count == 1 then redis.call('EXPIRE', key, ARGV[index + #KEYS]) end
+  if count > tonumber(ARGV[index]) then allowed = 0 end
+end
+return allowed
+`)
+
 func (c *Client) Name() string { return "redis" }
 
 func Open(rawURL string) (*Client, error) {
@@ -34,6 +44,23 @@ func (c *Client) Allow(ctx context.Context, key string, limit int, window time.D
 		return false, err
 	}
 	return count.Val() <= int64(limit), nil
+}
+
+func (c *Client) AllowMany(ctx context.Context, requests []rateLimitRequest) (bool, error) {
+	if len(requests) == 0 {
+		return true, nil
+	}
+	keys := make([]string, len(requests))
+	args := make([]any, 0, len(requests)*2)
+	for index, request := range requests {
+		keys[index] = "identity:rate:" + digest(request.key)
+		args = append(args, request.limit)
+	}
+	for _, request := range requests {
+		args = append(args, int(request.window.Seconds()))
+	}
+	result, err := allowManyScript.Run(ctx, c.client, keys, args...).Int()
+	return result == 1, err
 }
 
 func (c *Client) Revoke(ctx context.Context, jti string, ttl time.Duration) error {

@@ -4,6 +4,14 @@ image:
   pullPolicy: IfNotPresent
 service:
   port: 8080
+replicaCount: 2
+environment: production
+terminationGracePeriodSeconds: 30
+pdb:
+  minAvailable: 1
+migration:
+  enabled: true
+  backoffLimit: 4
 config:
   issuer: identity.local
   humanAudience: platform-api
@@ -21,7 +29,18 @@ config:
   smtpPort: 587
   smtpFrom: identity@example.com
   publicAppURL: https://app.example.com
+  otelEndpoint: ""
+  otelInsecure: false
+  signingKeyHistoryDir: ""
+  trustProxyHeaders: true
+  rateLoginSource: 30
+  rateRefreshSource: 120
+  rateResetSource: 12
+  rateServiceSource: 120
 secret:
+  create: true
+  existingSecret: ""
+  signingKeyHistoryExistingSecret: ""
   databaseURL: ""
   redisURL: ""
   signingKeyPEM: ""
@@ -30,3 +49,14 @@ secret:
 resources:
   requests: { cpu: 100m, memory: 256Mi }
   limits: { cpu: 1000m, memory: 512Mi }
+networkPolicy:
+  enabled: true
+  allowedIngressNamespaceLabels:
+    kubernetes.io/metadata.name: ecommerce-gateway
+  allowedIngressPodLabels:
+    app.kubernetes.io/name: gateway
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  monitoringPodLabels:
+    app.kubernetes.io/name: prometheus
+  allowSMTP: true

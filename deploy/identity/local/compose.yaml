@@ -27,6 +27,17 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    healthcheck:
+      test: [CMD-SHELL, '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  identity-kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on:
+      identity-kafka: { condition: service_healthy }
+    command: [/opt/kafka/bin/kafka-topics.sh, --bootstrap-server, identity-kafka:9092, --create, --if-not-exists, --topic, commerce.security.audit.v1, --partitions, '1', --replication-factor, '1']
 
   identity-mailhog:
     image: mailhog/mailhog:v1.0.1
@@ -50,10 +61,12 @@ services:
       IDENTITY_SMTP_PORT: '1025'
       IDENTITY_SMTP_FROM: identity@local.test
       IDENTITY_PUBLIC_APP_URL: http://localhost:3000
+      IDENTITY_OTEL_ENDPOINT: identity-otel:4317
+      IDENTITY_OTEL_INSECURE: 'true'
     depends_on:
       identity-postgres: { condition: service_healthy }
       identity-redis: { condition: service_healthy }
-      identity-kafka: { condition: service_started }
+      identity-kafka-init: { condition: service_completed_successfully }
       identity-mailhog: { condition: service_started }
     ports: ['8080:8080']
     read_only: true

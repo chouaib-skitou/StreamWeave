@@ -78,6 +78,37 @@ WHERE user_id = $1 AND status <> 'REVOKED';
 SELECT id, family_id, user_id, status, expires_at, revoked_at, created_at, last_used_at
 FROM sessions WHERE user_id = $1 ORDER BY created_at DESC;
 
+-- name: ListUserSessionsPage :many
+SELECT id, family_id, user_id, status, expires_at, revoked_at, created_at, last_used_at
+FROM sessions
+WHERE user_id = $1
+  AND (sqlc.narg('cursor_created_at')::timestamptz IS NULL
+       OR (created_at, id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg('page_size');
+
+-- name: ListUsersPage :many
+SELECT u.id, u.email, u.email_normalized, u.password_hash, u.status,
+       u.email_verified_at, u.created_at, u.updated_at
+FROM users u
+WHERE ($1::text = '' OR u.status = $1)
+  AND ($2::text = '' OR EXISTS (
+    SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+    WHERE ur.user_id = u.id AND r.name = $2 AND r.status = 'ACTIVE'
+  ))
+  AND ($3::text = '' OR u.email_normalized LIKE $3 || '%' ESCAPE '\')
+  AND (sqlc.narg('cursor_created_at')::timestamptz IS NULL
+       OR (u.created_at, u.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
+ORDER BY u.created_at DESC, u.id DESC
+LIMIT sqlc.arg('page_size');
+
+-- name: ListUserRoleNames :many
+SELECT ur.user_id, r.name
+FROM user_roles ur
+JOIN roles r ON r.id = ur.role_id
+WHERE ur.user_id = ANY(sqlc.arg('user_ids')::uuid[]) AND r.status = 'ACTIVE'
+ORDER BY ur.user_id, r.name;
+
 -- name: InsertSecurityAudit :exec
 INSERT INTO security_audit (id, actor_id, actor_type, action, target_type, target_id, metadata, correlation_id, occurred_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
@@ -89,6 +120,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7);
 -- name: ListPendingOutbox :many
 SELECT id, event_type, aggregate_type, aggregate_id, payload, headers, created_at, published_at, attempts, last_error
 FROM outbox_events WHERE published_at IS NULL ORDER BY created_at LIMIT $1;
+
+-- name: CountPendingOutbox :one
+SELECT count(*) FROM outbox_events WHERE published_at IS NULL;
 
 -- name: MarkOutboxPublished :exec
 UPDATE outbox_events SET published_at = $2, attempts = attempts + 1, last_error = NULL WHERE id = $1;

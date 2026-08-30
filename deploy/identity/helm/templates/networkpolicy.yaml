@@ -1,3 +1,4 @@
+{{- if .Values.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,10 +9,33 @@ spec:
       app.kubernetes.io/name: {{ include "identity.name" . }}
   policyTypes: [Ingress, Egress]
   ingress:
-    - ports: [{ protocol: TCP, port: 8080 }]
+    - from:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.allowedIngressNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.allowedIngressPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 8080 }]
+    - from:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.monitoringNamespaceLabels | nindent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.monitoringPodLabels | nindent 14 }}
+      ports: [{ protocol: TCP, port: 8080 }]
   egress:
+    - ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
     - ports:
         - { protocol: TCP, port: 5432 }
         - { protocol: TCP, port: 6379 }
         - { protocol: TCP, port: 9092 }
         - { protocol: TCP, port: 4317 }
+{{- if .Values.networkPolicy.allowSMTP }}
+        - { protocol: TCP, port: 587 }
+        - { protocol: TCP, port: 2525 }
+{{- end }}
+{{- end }}

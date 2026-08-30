@@ -30,3 +30,53 @@ groups:
         annotations:
           summary: Identity readiness or dependency checks failed
           description: Identity returned service-unavailable responses during the last five minutes.
+
+      - alert: IdentityRateLimitSpike
+        expr: sum(rate(identity_rate_limited_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity is rate limiting clients
+          description: Rate-limited requests exceeded one per second for five minutes.
+
+      - alert: IdentityRefreshTokenReuse
+        expr: increase(identity_refresh_reuse_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: identity
+        annotations:
+          summary: Identity detected refresh-token reuse
+          description: A refresh-token replay was detected and its session family was revoked.
+
+      - alert: IdentityOutboxBacklog
+        expr: identity_outbox_backlog > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity outbox backlog is growing
+          description: More than 100 audit events are waiting for publication.
+
+      - alert: IdentityOutboxPublicationFailures
+        expr: sum(rate(identity_outbox_publish_total{outcome="error"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity outbox publication is failing
+          description: Kafka publication or outbox acknowledgement has failed continuously for five minutes.
+
+      - alert: IdentityDatabasePoolPressure
+        expr: identity_db_pool_wait_count > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity database pool is saturated
+          description: Requests are waiting for a PostgreSQL connection.
