@@ -9,6 +9,7 @@ The Identity Service owns human users, credentials, sessions, roles, refresh-tok
 - Data model: [`../../docs/design/identity-data-model.md`](../../docs/design/identity-data-model.md)
 - Flows: [`../../docs/design/identity-flows.md`](../../docs/design/identity-flows.md)
 - Deployment: [`../../docs/design/identity-deployment.md`](../../docs/design/identity-deployment.md)
+- Brand system: [`../../docs/design/brand-identity.md`](../../docs/design/brand-identity.md)
 - API contract: [`../../contracts/openapi/identity.openapi.yaml`](../../contracts/openapi/identity.openapi.yaml)
 - Audit event: [`../../contracts/events/commerce.security.audit.v1.json`](../../contracts/events/commerce.security.audit.v1.json)
 - Stories: [`../../docs/stories/EPIC-002-identity-service.md`](../../docs/stories/EPIC-002-identity-service.md)

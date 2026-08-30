@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -74,6 +75,7 @@ type SMTPMailer struct {
 	password         string
 	from             string
 	publicAppURL     string
+	supportEmail     string
 	verificationPath string
 	resetPath        string
 }
@@ -84,11 +86,11 @@ const (
 )
 
 func NewSMTPMailer(host string, port int, username, password, from string) *SMTPMailer {
-	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: "http://localhost:3000", verificationPath: verificationPath, resetPath: resetPath}
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, supportEmail: from, publicAppURL: "http://localhost:3000", verificationPath: verificationPath, resetPath: resetPath}
 }
 
 func NewConfiguredSMTPMailer(host string, port int, username, password, from, publicAppURL string) *SMTPMailer {
-	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, publicAppURL: publicAppURL, verificationPath: verificationPath, resetPath: resetPath}
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, supportEmail: from, publicAppURL: publicAppURL, verificationPath: verificationPath, resetPath: resetPath}
 }
 
 func (m *SMTPMailer) Send(ctx context.Context, kind, recipient, token string) error {
@@ -98,16 +100,31 @@ func (m *SMTPMailer) Send(ctx context.Context, kind, recipient, token string) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	content, err := renderIdentityEmail(kind, recipient, token, m.publicAppURL, m.verificationPath, m.resetPath)
+	content, err := renderIdentityEmailWithSupport(kind, recipient, token, m.publicAppURL, m.verificationPath, m.resetPath, m.supportEmail)
 	if err != nil {
 		return err
 	}
 	boundary := "identity-mail-boundary"
-	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s--\r\n", m.from, recipient, content.Subject, boundary, boundary, content.Text, boundary, content.HTML, boundary)
+	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nReply-To: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s--\r\n--%s\r\nContent-Type: image/png; name=\"platform-logo.png\"\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <platform-logo>\r\nContent-Disposition: inline; filename=\"platform-logo.png\"\r\n\r\n%s\r\n--%s--\r\n", m.from, recipient, m.supportEmail, content.Subject, boundary, boundary, boundary+"-alternative", boundary+"-alternative", content.Text, boundary+"-alternative", content.HTML, boundary+"-alternative", boundary, wrapMIMEBase64(platformLogo), boundary)
 	address := fmt.Sprintf("%s:%d", m.host, m.port)
 	var auth smtp.Auth
 	if m.username != "" {
 		auth = smtp.PlainAuth("", m.username, m.password, m.host)
 	}
 	return smtp.SendMail(address, auth, m.from, []string{recipient}, []byte(body))
+}
+
+func wrapMIMEBase64(value []byte) string {
+	encoded := base64.StdEncoding.EncodeToString(value)
+	var result strings.Builder
+	for len(encoded) > 0 {
+		width := 76
+		if len(encoded) < width {
+			width = len(encoded)
+		}
+		result.WriteString(encoded[:width])
+		result.WriteString("\r\n")
+		encoded = encoded[width:]
+	}
+	return result.String()
 }
