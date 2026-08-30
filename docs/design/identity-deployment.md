@@ -109,6 +109,15 @@ Create alerts for sustained readiness failure, authentication failure spikes, re
 
 Identity images are built from reviewed `main` commits, tagged with the platform version, and published with SBOM/provenance when the platform release gate is operational. Migrations are backward-compatible. Rollback uses an older compatible image; database rollback is not assumed.
 
+The GitHub Actions cost boundary is intentional: `Identity CI` runs the full
+verification and integration suite only for pull requests that change Identity
+or its supporting contracts/deployment assets. It does not run again on the
+resulting `dev` or `main` push, and it does not publish images. The `Release`
+workflow is the single `main`-branch publisher: it creates the Semantic Release
+metadata, synchronizes `VERSION` and `CHANGELOG.md` to `dev`, and publishes the
+versioned Identity image to GHCR with SBOM and provenance. This avoids running
+the same test suite and Docker build twice for one promotion.
+
 The release workflow uses the ephemeral GitHub Actions `GITHUB_TOKEN` with
 `packages: write` for GHCR publication. The separate `RELEASE_TOKEN` is only
 needed for the machine-owned release commit, GitHub Release, and automatic
