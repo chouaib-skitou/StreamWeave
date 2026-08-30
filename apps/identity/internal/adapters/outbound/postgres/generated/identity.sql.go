@@ -286,6 +286,46 @@ func (q *Queries) GetServicePrincipal(ctx context.Context, clientID string) (Ser
 	return i, err
 }
 
+const getSessionByID = `-- name: GetSessionByID :one
+SELECT id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
+FROM sessions WHERE id = $1
+`
+
+type GetSessionByIDRow struct {
+	ID                   uuid.UUID      `json:"id"`
+	FamilyID             uuid.UUID      `json:"family_id"`
+	UserID               uuid.UUID      `json:"user_id"`
+	RefreshTokenHash     []byte         `json:"refresh_token_hash"`
+	Status               string         `json:"status"`
+	ExpiresAt            time.Time      `json:"expires_at"`
+	RevokedAt            sql.NullTime   `json:"revoked_at"`
+	RevokedReason        sql.NullString `json:"revoked_reason"`
+	RotatedFromSessionID uuid.NullUUID  `json:"rotated_from_session_id"`
+	ReplacedBySessionID  uuid.NullUUID  `json:"replaced_by_session_id"`
+	CreatedAt            time.Time      `json:"created_at"`
+	LastUsedAt           sql.NullTime   `json:"last_used_at"`
+}
+
+func (q *Queries) GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByID, id)
+	var i GetSessionByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.FamilyID,
+		&i.UserID,
+		&i.RefreshTokenHash,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokedReason,
+		&i.RotatedFromSessionID,
+		&i.ReplacedBySessionID,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const getSessionByRefreshHash = `-- name: GetSessionByRefreshHash :one
 SELECT id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
 FROM sessions WHERE refresh_token_hash = $1

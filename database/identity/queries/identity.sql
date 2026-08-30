@@ -55,6 +55,10 @@ RETURNING id, family_id, user_id, refresh_token_hash, status, expires_at, revoke
 SELECT id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
 FROM sessions WHERE refresh_token_hash = $1;
 
+-- name: GetSessionByID :one
+SELECT id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
+FROM sessions WHERE id = $1;
+
 -- name: RotateSession :execrows
 UPDATE sessions SET status = 'ROTATED', replaced_by_session_id = $2, last_used_at = $3 WHERE id = $1 AND status = 'ACTIVE';
 

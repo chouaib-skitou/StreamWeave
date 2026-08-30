@@ -232,6 +232,16 @@ func (s *Service) Sessions(ctx context.Context, userID uuid.UUID) ([]domain.Sess
 	return s.store.ListSessions(ctx, userID)
 }
 
+// IsSessionActive checks the persistent session state before accepting a human token.
+// This makes logout, logout-all, password reset, and user disablement effective immediately.
+func (s *Service) IsSessionActive(ctx context.Context, sessionID uuid.UUID) (bool, error) {
+	session, err := s.store.FindSessionByID(ctx, sessionID)
+	if err != nil {
+		return false, err
+	}
+	return session.IsUsable(s.clock.Now()), nil
+}
+
 func (s *Service) User(ctx context.Context, userID uuid.UUID) (domain.User, []domain.RolePermission, error) {
 	user, err := s.store.FindUser(ctx, userID)
 	if err != nil {

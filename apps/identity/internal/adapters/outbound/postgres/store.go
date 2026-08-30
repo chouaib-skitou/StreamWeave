@@ -86,6 +86,11 @@ func (s *Store) FindSessionByRefreshHash(ctx context.Context, hash []byte) (doma
 	return mapSession(session.ID, session.FamilyID, session.UserID, session.Status, session.ExpiresAt, session.RevokedAt, session.CreatedAt, session.LastUsedAt), mapDatabaseError(err)
 }
 
+func (s *Store) FindSessionByID(ctx context.Context, id uuid.UUID) (domain.Session, error) {
+	session, err := s.q.GetSessionByID(ctx, id)
+	return mapSession(session.ID, session.FamilyID, session.UserID, session.Status, session.ExpiresAt, session.RevokedAt, session.CreatedAt, session.LastUsedAt), mapDatabaseError(err)
+}
+
 func (s *Store) ListSessions(ctx context.Context, userID uuid.UUID) ([]domain.Session, error) {
 	rows, err := s.q.ListUserSessions(ctx, userID)
 	if err != nil {

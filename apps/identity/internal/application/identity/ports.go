@@ -17,6 +17,7 @@ type UserStore interface {
 
 type SessionStore interface {
 	FindSessionByRefreshHash(context.Context, []byte) (domain.Session, error)
+	FindSessionByID(context.Context, uuid.UUID) (domain.Session, error)
 	ListSessions(context.Context, uuid.UUID) ([]domain.Session, error)
 }
 

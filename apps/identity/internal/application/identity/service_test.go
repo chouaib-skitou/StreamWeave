@@ -103,6 +103,16 @@ func (s *fakeStore) FindSessionByRefreshHash(context.Context, []byte) (domain.Se
 	}
 	return domain.Session{}, domain.ErrNotFound
 }
+func (s *fakeStore) FindSessionByID(_ context.Context, id uuid.UUID) (domain.Session, error) {
+	if s.sessionErr != nil {
+		return domain.Session{}, s.sessionErr
+	}
+	session, ok := s.sessions[id]
+	if !ok {
+		return domain.Session{}, domain.ErrNotFound
+	}
+	return session, nil
+}
 func (s *fakeStore) ListSessions(_ context.Context, id uuid.UUID) ([]domain.Session, error) {
 	result := []domain.Session{}
 	for _, session := range s.sessions {
@@ -512,6 +522,33 @@ func TestSessionListingLogoutAndRecoveryOutcomes(t *testing.T) {
 	}
 	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); err == nil {
 		t.Fatal("revoked session refreshed")
+	}
+}
+
+func TestIsSessionActiveReflectsPersistentState(t *testing.T) {
+	store := newFakeStore()
+	service := newServiceForTest(t, store, nil)
+	sessionID := uuid.New()
+	store.sessions[sessionID] = domain.Session{
+		ID:        sessionID,
+		Status:    domain.SessionActive,
+		ExpiresAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	active, err := service.IsSessionActive(context.Background(), sessionID)
+	if err != nil || !active {
+		t.Fatalf("active session: active=%v err=%v", active, err)
+	}
+	store.sessions[sessionID] = domain.Session{ID: sessionID, Status: domain.SessionRevoked, ExpiresAt: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)}
+	active, err = service.IsSessionActive(context.Background(), sessionID)
+	if err != nil || active {
+		t.Fatalf("revoked session: active=%v err=%v", active, err)
+	}
+	if _, err := service.IsSessionActive(context.Background(), uuid.New()); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing session: %v", err)
+	}
+	store.sessionErr = errors.New("session lookup unavailable")
+	if _, err := service.IsSessionActive(context.Background(), sessionID); err == nil {
+		t.Fatal("session lookup error was ignored")
 	}
 }
 

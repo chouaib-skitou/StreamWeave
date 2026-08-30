@@ -69,6 +69,16 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 				return
 			}
 		}
+		sessionID, err := uuid.Parse(claims.SessionID)
+		if err != nil || s.identity == nil {
+			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
+			return
+		}
+		active, checkErr := s.identity.IsSessionActive(r.Context(), sessionID)
+		if checkErr != nil || !active {
+			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
+			return
+		}
 		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
 	})
 }

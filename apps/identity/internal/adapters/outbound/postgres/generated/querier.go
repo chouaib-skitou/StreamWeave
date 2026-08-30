@@ -22,6 +22,7 @@ type Querier interface {
 	GetResetToken(ctx context.Context, tokenHash []byte) (ResetToken, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
 	GetServicePrincipal(ctx context.Context, clientID string) (ServicePrincipal, error)
+	GetSessionByID(ctx context.Context, id uuid.UUID) (GetSessionByIDRow, error)
 	GetSessionByRefreshHash(ctx context.Context, refreshTokenHash []byte) (GetSessionByRefreshHashRow, error)
 	GetUserByEmail(ctx context.Context, emailNormalized string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
