@@ -9,5 +9,25 @@
 # Local release tooling dependencies
 /node_modules/
 
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig*
+/secrets/
+
+# Local test coverage artifacts
+/coverage
+/coverage.out
+/identity
+/foo
+/foo-bar
+/*-coverage.out
+/identity-coverage
+/$coverageProfile
+/$profile
+
 # Private project blueprint
 /01_event_driven_ecommerce_order_management_platform.md

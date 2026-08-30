@@ -1,0 +1,33 @@
+environment: production
+replicaCount: 2
+image:
+  repository: ghcr.io/chouaib-skitou/event-driven-ecommerce-platform/identity
+  tag: 0.1.1
+  pullPolicy: IfNotPresent
+secret:
+  create: false
+  existingSecret: identity-external
+  signingKeyHistoryExistingSecret: identity-signing-key-history
+config:
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: live.smtp.mailtrap.io
+  smtpPort: 587
+  smtpFrom: identity@example.com
+  publicAppURL: https://app.example.com
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  signingKeyHistoryDir: /var/run/secrets/identity/history
+  trustProxyHeaders: true
+networkPolicy:
+  allowedIngressNamespaceLabels:
+    kubernetes.io/metadata.name: ecommerce-gateway
+  allowedIngressPodLabels:
+    app.kubernetes.io/name: gateway
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  monitoringPodLabels:
+    app.kubernetes.io/name: prometheus
+  smtpCIDRs:
+    - 44.212.106.134/32
+    - 54.158.149.228/32
+  allowSMTP: true

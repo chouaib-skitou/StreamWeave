@@ -1,0 +1,79 @@
+image:
+  repository: identity
+  tag: local
+  pullPolicy: IfNotPresent
+service:
+  port: 8080
+replicaCount: 2
+environment: production
+terminationGracePeriodSeconds: 30
+pdb:
+  minAvailable: 1
+migration:
+  enabled: true
+  backoffLimit: 4
+config:
+  issuer: identity.local
+  humanAudience: platform-api
+  machineAudience: platform-internal
+  logLevel: info
+  demoRegistration: false
+  kafkaBrokers: identity-kafka:9092
+  signingKeyPath: /var/run/secrets/identity/signing-key.pem
+  signingKeyID: identity-v1
+  mailerMode: smtp
+  testMailerEnabled: false
+  smtpHost: ""
+  smtpPort: 587
+  smtpFrom: identity@example.com
+  publicAppURL: https://app.example.com
+  otelEndpoint: ""
+  otelInsecure: false
+  openapiPath: /contracts/openapi/identity.openapi.yaml
+  signingKeyHistoryDir: ""
+  trustProxyHeaders: true
+  rateLoginSource: 30
+  rateRefreshSource: 120
+  rateResetSource: 12
+  rateServiceSource: 120
+secret:
+  create: false
+  existingSecret: identity-external
+  signingKeyHistoryExistingSecret: ""
+  databaseURL: ""
+  redisURL: ""
+  signingKeyPEM: ""
+  smtpUsername: ""
+  smtpPassword: ""
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 1000m, memory: 512Mi }
+networkPolicy:
+  enabled: true
+  dnsNamespaceLabels:
+    kubernetes.io/metadata.name: kube-system
+  dnsPodLabels:
+    k8s-app: kube-dns
+  databaseNamespaceLabels: {}
+  redisNamespaceLabels: {}
+  kafkaNamespaceLabels: {}
+  otelNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  allowedIngressNamespaceLabels:
+    kubernetes.io/metadata.name: ecommerce-gateway
+  allowedIngressPodLabels:
+    app.kubernetes.io/name: gateway
+  monitoringNamespaceLabels:
+    kubernetes.io/metadata.name: monitoring
+  monitoringPodLabels:
+    app.kubernetes.io/name: prometheus
+  databasePodLabels:
+    app.kubernetes.io/name: postgresql
+  redisPodLabels:
+    app.kubernetes.io/name: redis
+  kafkaPodLabels:
+    app.kubernetes.io/name: kafka
+  otelPodLabels:
+    app.kubernetes.io/name: opentelemetry-collector
+  smtpCIDRs: []
+  allowSMTP: false

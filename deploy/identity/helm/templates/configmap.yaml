@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "identity.fullname" . }}-config
+data:
+  IDENTITY_ISSUER: {{ .Values.config.issuer | quote }}
+  IDENTITY_HUMAN_AUDIENCE: {{ .Values.config.humanAudience | quote }}
+  IDENTITY_MACHINE_AUDIENCE: {{ .Values.config.machineAudience | quote }}
+  IDENTITY_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  IDENTITY_DEMO_REGISTRATION_ENABLED: {{ .Values.config.demoRegistration | quote }}
+  IDENTITY_KAFKA_BROKERS: {{ .Values.config.kafkaBrokers | quote }}
+  IDENTITY_SIGNING_KEY_PATH: {{ .Values.config.signingKeyPath | quote }}
+  IDENTITY_SIGNING_KEY_ID: {{ .Values.config.signingKeyID | quote }}
+  IDENTITY_MAILER_MODE: {{ .Values.config.mailerMode | quote }}
+  IDENTITY_TEST_MAILER_ENABLED: {{ .Values.config.testMailerEnabled | quote }}
+  IDENTITY_SMTP_HOST: {{ .Values.config.smtpHost | quote }}
+  IDENTITY_SMTP_PORT: {{ .Values.config.smtpPort | quote }}
+  IDENTITY_SMTP_FROM: {{ .Values.config.smtpFrom | quote }}
+  IDENTITY_PUBLIC_APP_URL: {{ .Values.config.publicAppURL | quote }}
+  IDENTITY_OTEL_ENDPOINT: {{ .Values.config.otelEndpoint | quote }}
+  IDENTITY_OTEL_INSECURE: {{ .Values.config.otelInsecure | quote }}
+  IDENTITY_OPENAPI_PATH: {{ .Values.config.openapiPath | quote }}
+  IDENTITY_SIGNING_KEY_HISTORY_DIR: {{ .Values.config.signingKeyHistoryDir | quote }}
+  IDENTITY_TRUST_PROXY_HEADERS: {{ .Values.config.trustProxyHeaders | quote }}
+  IDENTITY_RATE_LOGIN_SOURCE_PER_WINDOW: {{ .Values.config.rateLoginSource | quote }}
+  IDENTITY_RATE_REFRESH_SOURCE_PER_MINUTE: {{ .Values.config.rateRefreshSource | quote }}
+  IDENTITY_RATE_RESET_SOURCE_PER_HOUR: {{ .Values.config.rateResetSource | quote }}
+  IDENTITY_RATE_SERVICE_SOURCE_PER_MINUTE: {{ .Values.config.rateServiceSource | quote }}

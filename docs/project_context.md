@@ -51,11 +51,11 @@ The API must expose intermediate states honestly rather than pretending the dist
 
 ## Security boundary
 
-The project uses simulated identity/payment data only. Never store real secrets or cardholder data.
+The project uses synthetic data in automated tests. Local Identity development uses MailHog for real SMTP capture, while shared environments use isolated Mailtrap SMTP destinations. Never store real secrets or cardholder data.
 
 ## Repository state
 
-The repository is in the planning and architecture preparation phase. The product brief, project context, repository governance, BMAD workflow, and release automation are present. The Go applications, API and event contracts, database migrations, deployment manifests, quality CI, and tests will be added through reviewed feature branches.
+The repository contains the approved Identity Service implementation, database migrations, deployment manifests, quality CI, tests, email templates, environment profiles, and API/event contracts. Further services are added through reviewed feature branches.
 
 The private BMAD installation, local agent instructions, original blueprint, BMAD guide, and generated BMAD output remain local-only and are excluded by `.gitignore`.
 
@@ -80,7 +80,7 @@ The release workflow does not replace application CI. Quality checks become auth
 | Architecture | `docs/architecture/` |
 | ADRs | `docs/architecture/decisions/` |
 | Epics and stories | `docs/stories/` |
-| API and event contracts | `contracts/` |
+| API and event contracts | `contracts/` (Identity baseline available) |
 | Runbooks | `docs/runbooks/` |
 | BMAD operating guide | local `docs/bmad/workflow.md` |
 

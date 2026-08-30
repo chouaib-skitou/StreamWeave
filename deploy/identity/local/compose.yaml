@@ -1,0 +1,145 @@
+services:
+  identity-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in .env}
+    volumes: [identity-local-postgres-data:/var/lib/postgresql/data]
+    healthcheck: { test: [CMD-SHELL, 'pg_isready -U identity -d identity'], interval: 5s, timeout: 5s, retries: 10 }
+
+  identity-redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, no]
+    healthcheck: { test: [CMD, redis-cli, ping], interval: 5s, timeout: 3s, retries: 10 }
+
+  identity-kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://identity-kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@identity-kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    healthcheck:
+      test: [CMD-SHELL, '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  identity-kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on:
+      identity-kafka: { condition: service_healthy }
+    command: [/opt/kafka/bin/kafka-topics.sh, --bootstrap-server, identity-kafka:9092, --create, --if-not-exists, --topic, commerce.security.audit.v1, --partitions, '1', --replication-factor, '1']
+
+  identity-mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports: ['8025:8025']
+    expose: ['1025']
+
+  identity:
+    build: { context: ../../.., dockerfile: deploy/identity/Dockerfile }
+    environment:
+      IDENTITY_HTTP_ADDR: :8080
+      IDENTITY_OPENAPI_PATH: /contracts/openapi/identity.openapi.yaml
+      IDENTITY_ENVIRONMENT: development
+      IDENTITY_DATABASE_URL: postgres://identity:${IDENTITY_DB_PASSWORD:?set IDENTITY_DB_PASSWORD in .env}@identity-postgres:5432/identity?sslmode=disable
+      IDENTITY_REDIS_URL: redis://identity-redis:6379/0
+      IDENTITY_KAFKA_BROKERS: identity-kafka:9092
+      IDENTITY_DEMO_REGISTRATION_ENABLED: 'true'
+      IDENTITY_RUN_MIGRATIONS: 'true'
+      IDENTITY_LOG_LEVEL: info
+      IDENTITY_MAILER_MODE: smtp
+      IDENTITY_TEST_MAILER_ENABLED: 'false'
+      IDENTITY_SMTP_HOST: identity-mailhog
+      IDENTITY_SMTP_PORT: '1025'
+      IDENTITY_SMTP_FROM: identity@local.test
+      IDENTITY_PUBLIC_APP_URL: http://localhost:3000
+      IDENTITY_OTEL_ENDPOINT: identity-otel:4317
+      IDENTITY_OTEL_INSECURE: 'true'
+    depends_on:
+      identity-postgres: { condition: service_healthy }
+      identity-redis: { condition: service_healthy }
+      identity-kafka-init: { condition: service_completed_successfully }
+      identity-mailhog: { condition: service_started }
+    ports: ['8080:8080']
+    read_only: true
+    user: 'identity'
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:8080/health/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-otel:
+    image: otel/opentelemetry-collector-contrib:0.117.0
+    command: [--config=/etc/otelcol/config.yaml]
+    volumes: [../otel-config.yaml:/etc/otelcol/config.yaml:ro]
+    depends_on:
+      identity-tempo: { condition: service_started }
+    ports: ['4317:4317', '4318:4318']
+
+  identity-tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - identity-local-tempo-data:/var/tempo
+    ports: ['3200:3200']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:3200/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules/identity.yml:ro
+      - identity-local-prometheus-data:/prometheus
+    depends_on:
+      identity: { condition: service_healthy }
+      identity-alertmanager: { condition: service_started }
+    ports: ['9090:9090']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:9090/-/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - identity-local-alertmanager-data:/alertmanager
+    ports: ['9093:9093']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:9093/-/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${IDENTITY_GRAFANA_ADMIN_USER:?set IDENTITY_GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${IDENTITY_GRAFANA_ADMIN_PASSWORD:?set IDENTITY_GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    volumes:
+      - identity-local-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      identity-prometheus: { condition: service_healthy }
+      identity-alertmanager: { condition: service_healthy }
+      identity-tempo: { condition: service_healthy }
+    ports: ['3001:3000']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:3000/api/health], interval: 10s, timeout: 3s, retries: 10 }
+
+volumes:
+  identity-local-postgres-data:
+  identity-local-tempo-data:
+  identity-local-prometheus-data:
+  identity-local-alertmanager-data:
+  identity-local-grafana-data:
