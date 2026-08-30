@@ -5,9 +5,9 @@ purpose: build-substrate
 altitude: feature
 paradigm: Clean / Hexagonal Architecture
 scope: Identity authentication, sessions, authorization catalog, service principals, audit, and operations
-status: proposed
+status: implemented
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 sources:
   - 01_event_driven_ecommerce_order_management_platform.md
   - docs/brief.md

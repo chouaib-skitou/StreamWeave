@@ -23,30 +23,31 @@ import (
 )
 
 type Server struct {
-	httpServer        *http.Server
-	health            *health.Service
-	logger            *slog.Logger
-	requests          *prometheus.CounterVec
-	authentication    *prometheus.CounterVec
-	refreshes         *prometheus.CounterVec
-	refreshReuse      prometheus.Counter
-	jwtVerification   *prometheus.CounterVec
-	sessionRevoked    *prometheus.CounterVec
-	outboxPublished   *prometheus.CounterVec
-	rateLimited       *prometheus.CounterVec
-	dbPoolInUse       prometheus.Gauge
-	dbPoolWaitCount   prometheus.Gauge
-	outboxBacklog     prometheus.Gauge
-	identity          *identityapp.Service
-	signer            *identitycrypto.Signer
-	revocations       RevocationChecker
-	mux               *http.ServeMux
-	demoRegistration  bool
-	humanAudience     string
-	mailbox           identityapp.Mailbox
-	testMailer        bool
-	trustProxyHeaders bool
-	dbStats           func() sql.DBStats
+	httpServer          *http.Server
+	health              *health.Service
+	logger              *slog.Logger
+	requests            *prometheus.CounterVec
+	authentication      *prometheus.CounterVec
+	refreshes           *prometheus.CounterVec
+	refreshReuse        prometheus.Counter
+	jwtVerification     *prometheus.CounterVec
+	sessionRevoked      *prometheus.CounterVec
+	outboxPublished     *prometheus.CounterVec
+	rateLimited         *prometheus.CounterVec
+	dbPoolInUse         prometheus.Gauge
+	dbPoolWaitCount     prometheus.Gauge
+	outboxBacklog       prometheus.Gauge
+	identity            *identityapp.Service
+	signer              *identitycrypto.Signer
+	revocations         RevocationChecker
+	mux                 *http.ServeMux
+	demoRegistration    bool
+	humanAudience       string
+	mailbox             identityapp.Mailbox
+	testMailer          bool
+	trustProxyHeaders   bool
+	emergencyRevocation bool
+	dbStats             func() sql.DBStats
 }
 
 type RevocationChecker interface {
@@ -107,7 +108,8 @@ func (s *Server) ObserveOutboxPublish(outcome string) {
 	s.outboxPublished.WithLabelValues(outcome).Inc()
 }
 
-func (s *Server) SetTrustProxyHeaders(enabled bool) { s.trustProxyHeaders = enabled }
+func (s *Server) SetTrustProxyHeaders(enabled bool)   { s.trustProxyHeaders = enabled }
+func (s *Server) SetEmergencyRevocation(enabled bool) { s.emergencyRevocation = enabled }
 
 func (s *Server) requestSource(request *http.Request) string {
 	return requestSource(request, s.trustProxyHeaders)

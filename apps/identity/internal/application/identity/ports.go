@@ -34,19 +34,22 @@ type RecoveryStore interface {
 type Transaction interface {
 	CreateUser(context.Context, domain.User) (domain.User, error)
 	CreateSession(context.Context, domain.Session, []byte, []byte, []byte) error
+	LockActiveSession(context.Context, uuid.UUID) (bool, error)
 	RotateSession(context.Context, uuid.UUID, uuid.UUID, time.Time) (int64, error)
 	RevokeSessionFamily(context.Context, uuid.UUID, time.Time, string) error
 	RevokeSession(context.Context, uuid.UUID, time.Time, string) error
 	RevokeUserSessions(context.Context, uuid.UUID, time.Time, string) error
-	UpdateUserStatus(context.Context, uuid.UUID, domain.UserStatus, time.Time) error
+	UpdateUserStatus(context.Context, uuid.UUID, domain.UserStatus, time.Time) (int64, error)
 	UpdatePassword(context.Context, uuid.UUID, string, time.Time) error
-	AssignRole(context.Context, uuid.UUID, string, time.Time, uuid.NullUUID) error
-	RemoveRole(context.Context, uuid.UUID, string) error
+	AssignRole(context.Context, uuid.UUID, string, time.Time, uuid.NullUUID) (int64, error)
+	RemoveRole(context.Context, uuid.UUID, string) (int64, error)
+	HasActiveRole(context.Context, uuid.UUID, string) (bool, error)
+	CountActiveAdministrators(context.Context) (int64, error)
 	CreateResetToken(context.Context, uuid.UUID, uuid.UUID, []byte, time.Time, time.Time) error
 	ConsumeResetToken(context.Context, uuid.UUID, time.Time) (int64, error)
 	CreateVerificationToken(context.Context, uuid.UUID, uuid.UUID, []byte, time.Time, time.Time) error
 	ConsumeVerificationToken(context.Context, uuid.UUID, time.Time) (int64, error)
-	MarkEmailVerified(context.Context, uuid.UUID, time.Time) error
+	MarkEmailVerified(context.Context, uuid.UUID, time.Time) (int64, error)
 	MarkServicePrincipalUsed(context.Context, uuid.UUID, time.Time) error
 	RecordAudit(context.Context, AuditRecord) error
 	RecordOutbox(context.Context, OutboxRecord) error

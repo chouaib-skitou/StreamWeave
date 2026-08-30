@@ -1,5 +1,9 @@
 environment: production
 replicaCount: 2
+image:
+  repository: ghcr.io/chouaib-skitou/event-driven-ecommerce-platform/identity
+  tag: 0.1.1
+  pullPolicy: IfNotPresent
 secret:
   create: false
   existingSecret: identity-external

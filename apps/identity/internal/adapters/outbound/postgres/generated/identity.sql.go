@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 )
 
-const assignRole = `-- name: AssignRole :exec
+const assignRole = `-- name: AssignRole :execrows
 INSERT INTO user_roles (user_id, role_id, assigned_at, assigned_by)
 SELECT $1, id, $3, $4 FROM roles WHERE name = $2 AND status = 'ACTIVE'
 ON CONFLICT (user_id, role_id) DO NOTHING
@@ -28,14 +28,17 @@ type AssignRoleParams struct {
 	AssignedBy uuid.NullUUID `json:"assigned_by"`
 }
 
-func (q *Queries) AssignRole(ctx context.Context, arg AssignRoleParams) error {
-	_, err := q.db.ExecContext(ctx, assignRole,
+func (q *Queries) AssignRole(ctx context.Context, arg AssignRoleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, assignRole,
 		arg.UserID,
 		arg.Name,
 		arg.AssignedAt,
 		arg.AssignedBy,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const consumeResetToken = `-- name: ConsumeResetToken :execrows
@@ -120,20 +123,21 @@ func (q *Queries) CreateResetToken(ctx context.Context, arg CreateResetTokenPara
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (id, family_id, user_id, refresh_token_hash, status, expires_at, created_at, last_used_at, user_agent_hash, ip_prefix_hash)
-VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, $6, $7, $8)
+INSERT INTO sessions (id, family_id, user_id, refresh_token_hash, status, expires_at, created_at, last_used_at, user_agent_hash, ip_prefix_hash, rotated_from_session_id)
+VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, $6, $7, $8, $9)
 RETURNING id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
 `
 
 type CreateSessionParams struct {
-	ID               uuid.UUID `json:"id"`
-	FamilyID         uuid.UUID `json:"family_id"`
-	UserID           uuid.UUID `json:"user_id"`
-	RefreshTokenHash []byte    `json:"refresh_token_hash"`
-	ExpiresAt        time.Time `json:"expires_at"`
-	CreatedAt        time.Time `json:"created_at"`
-	UserAgentHash    []byte    `json:"user_agent_hash"`
-	IpPrefixHash     []byte    `json:"ip_prefix_hash"`
+	ID                   uuid.UUID     `json:"id"`
+	FamilyID             uuid.UUID     `json:"family_id"`
+	UserID               uuid.UUID     `json:"user_id"`
+	RefreshTokenHash     []byte        `json:"refresh_token_hash"`
+	ExpiresAt            time.Time     `json:"expires_at"`
+	CreatedAt            time.Time     `json:"created_at"`
+	UserAgentHash        []byte        `json:"user_agent_hash"`
+	IpPrefixHash         []byte        `json:"ip_prefix_hash"`
+	RotatedFromSessionID uuid.NullUUID `json:"rotated_from_session_id"`
 }
 
 type CreateSessionRow struct {
@@ -161,6 +165,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (C
 		arg.CreatedAt,
 		arg.UserAgentHash,
 		arg.IpPrefixHash,
+		arg.RotatedFromSessionID,
 	)
 	var i CreateSessionRow
 	err := row.Scan(
@@ -260,7 +265,7 @@ func (q *Queries) GetResetToken(ctx context.Context, tokenHash []byte) (ResetTok
 }
 
 const getRoleByName = `-- name: GetRoleByName :one
-SELECT id, name, description, status, created_at, updated_at FROM roles WHERE name = $1
+SELECT id, name, description, status, created_at, updated_at FROM roles WHERE name = $1 AND status = 'ACTIVE'
 `
 
 func (q *Queries) GetRoleByName(ctx context.Context, name string) (Role, error) {
@@ -438,6 +443,26 @@ func (q *Queries) GetVerificationToken(ctx context.Context, tokenHash []byte) (V
 	return i, err
 }
 
+const hasActiveRole = `-- name: HasActiveRole :one
+SELECT EXISTS (
+    SELECT 1 FROM user_roles ur
+    JOIN roles r ON r.id = ur.role_id
+    WHERE ur.user_id = $1 AND r.name = $2 AND r.status = 'ACTIVE'
+)
+`
+
+type HasActiveRoleParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	Name   string    `json:"name"`
+}
+
+func (q *Queries) HasActiveRole(ctx context.Context, arg HasActiveRoleParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasActiveRole, arg.UserID, arg.Name)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertOutboxEvent = `-- name: InsertOutboxEvent :exec
 INSERT INTO outbox_events (id, event_type, aggregate_type, aggregate_id, payload, headers, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -502,6 +527,7 @@ const listActiveServiceCredentials = `-- name: ListActiveServiceCredentials :man
 SELECT id, service_principal_id, secret_hash, status, valid_from, retired_at, created_at, last_used_at
 FROM service_principal_credentials
 WHERE service_principal_id = $1 AND status = 'ACTIVE' AND valid_from <= $2
+  AND retired_at IS NULL
 ORDER BY valid_from DESC
 `
 
@@ -832,8 +858,18 @@ func (q *Queries) ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([
 	return items, nil
 }
 
-const markEmailVerified = `-- name: MarkEmailVerified :exec
-UPDATE users SET email_verified_at = $2, status = 'ACTIVE', updated_at = $2 WHERE id = $1
+const lockActiveSession = `-- name: LockActiveSession :one
+SELECT id FROM sessions WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE
+`
+
+func (q *Queries) LockActiveSession(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockActiveSession, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
+const markEmailVerified = `-- name: MarkEmailVerified :execrows
+UPDATE users SET email_verified_at = $2, status = 'ACTIVE', updated_at = $2 WHERE id = $1 AND status = 'PENDING_VERIFICATION'
 `
 
 type MarkEmailVerifiedParams struct {
@@ -841,9 +877,12 @@ type MarkEmailVerifiedParams struct {
 	EmailVerifiedAt sql.NullTime `json:"email_verified_at"`
 }
 
-func (q *Queries) MarkEmailVerified(ctx context.Context, arg MarkEmailVerifiedParams) error {
-	_, err := q.db.ExecContext(ctx, markEmailVerified, arg.ID, arg.EmailVerifiedAt)
-	return err
+func (q *Queries) MarkEmailVerified(ctx context.Context, arg MarkEmailVerifiedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markEmailVerified, arg.ID, arg.EmailVerifiedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markOutboxFailed = `-- name: MarkOutboxFailed :exec
@@ -888,7 +927,7 @@ func (q *Queries) MarkServicePrincipalUsed(ctx context.Context, arg MarkServiceP
 	return err
 }
 
-const removeRole = `-- name: RemoveRole :exec
+const removeRole = `-- name: RemoveRole :execrows
 DELETE FROM user_roles ur USING roles r
 WHERE ur.user_id = $1 AND ur.role_id = r.id AND r.name = $2
 `
@@ -898,9 +937,12 @@ type RemoveRoleParams struct {
 	Name   string    `json:"name"`
 }
 
-func (q *Queries) RemoveRole(ctx context.Context, arg RemoveRoleParams) error {
-	_, err := q.db.ExecContext(ctx, removeRole, arg.UserID, arg.Name)
-	return err
+func (q *Queries) RemoveRole(ctx context.Context, arg RemoveRoleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, removeRole, arg.UserID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const revokeSessionByID = `-- name: RevokeSessionByID :exec
@@ -984,7 +1026,7 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 	return err
 }
 
-const updateUserStatus = `-- name: UpdateUserStatus :exec
+const updateUserStatus = `-- name: UpdateUserStatus :execrows
 UPDATE users SET status = $2, updated_at = $3 WHERE id = $1
 `
 
@@ -994,7 +1036,10 @@ type UpdateUserStatusParams struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserStatus, arg.ID, arg.Status, arg.UpdatedAt)
-	return err
+func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserStatus, arg.ID, arg.Status, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

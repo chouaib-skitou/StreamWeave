@@ -112,10 +112,14 @@ func LoadSignerWithHistory(path, kid, issuer, historyDir string) (*Signer, error
 
 func (s *Signer) Sign(subject, audience, kind, sessionID string, roles, scopes []string, ttl time.Duration) (string, error) {
 	now := time.Now().UTC()
+	jti, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("generate token identifier: %w", err)
+	}
 	claims := Claims{Roles: roles, Scopes: scopes, TokenKind: kind, SessionID: sessionID, RegisteredClaims: jwt.RegisteredClaims{
 		Issuer: s.issuer, Subject: subject, Audience: jwt.ClaimStrings{audience},
 		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)), IssuedAt: jwt.NewNumericDate(now),
-		NotBefore: jwt.NewNumericDate(now), ID: uuid.NewString(),
+		NotBefore: jwt.NewNumericDate(now), ID: jti.String(),
 	}}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	token.Header["kid"] = s.kid

@@ -20,10 +20,12 @@ kubeconfig*
 
 # Local test coverage artifacts
 /coverage
+/coverage.out
 /identity
 /foo
 /foo-bar
 /*-coverage.out
+/identity-coverage
 /$coverageProfile
 /$profile
 

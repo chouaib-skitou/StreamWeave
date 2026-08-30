@@ -228,8 +228,16 @@ func (t *storeTransaction) CreateUser(ctx context.Context, user domain.User) (do
 }
 
 func (t *storeTransaction) CreateSession(ctx context.Context, session domain.Session, refreshHash, userAgentHash, ipPrefixHash []byte) error {
-	_, err := t.q.CreateSession(ctx, generated.CreateSessionParams{ID: session.ID, FamilyID: session.FamilyID, UserID: session.UserID, RefreshTokenHash: refreshHash, ExpiresAt: session.ExpiresAt, CreatedAt: session.CreatedAt, UserAgentHash: userAgentHash, IpPrefixHash: ipPrefixHash})
+	_, err := t.q.CreateSession(ctx, generated.CreateSessionParams{ID: session.ID, FamilyID: session.FamilyID, UserID: session.UserID, RefreshTokenHash: refreshHash, ExpiresAt: session.ExpiresAt, CreatedAt: session.CreatedAt, UserAgentHash: userAgentHash, IpPrefixHash: ipPrefixHash, RotatedFromSessionID: nullableUUIDPointer(session.RotatedFromSessionID)})
 	return mapDatabaseError(err)
+}
+
+func (t *storeTransaction) LockActiveSession(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := t.q.LockActiveSession(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, domain.ErrNotFound
+	}
+	return err == nil, mapDatabaseError(err)
 }
 
 func (t *storeTransaction) RotateSession(ctx context.Context, id, replacementID uuid.UUID, now time.Time) (int64, error) {
@@ -249,20 +257,33 @@ func (t *storeTransaction) RevokeUserSessions(ctx context.Context, userID uuid.U
 	return mapDatabaseError(t.q.RevokeUserSessions(ctx, generated.RevokeUserSessionsParams{UserID: userID, RevokedAt: sql.NullTime{Time: now, Valid: true}, RevokedReason: sql.NullString{String: reason, Valid: true}}))
 }
 
-func (t *storeTransaction) UpdateUserStatus(ctx context.Context, id uuid.UUID, status domain.UserStatus, now time.Time) error {
-	return mapDatabaseError(t.q.UpdateUserStatus(ctx, generated.UpdateUserStatusParams{ID: id, Status: string(status), UpdatedAt: now}))
+func (t *storeTransaction) UpdateUserStatus(ctx context.Context, id uuid.UUID, status domain.UserStatus, now time.Time) (int64, error) {
+	count, err := t.q.UpdateUserStatus(ctx, generated.UpdateUserStatusParams{ID: id, Status: string(status), UpdatedAt: now})
+	return count, mapDatabaseError(err)
 }
 
 func (t *storeTransaction) UpdatePassword(ctx context.Context, id uuid.UUID, hash string, now time.Time) error {
 	return mapDatabaseError(t.q.UpdatePassword(ctx, generated.UpdatePasswordParams{ID: id, PasswordHash: hash, UpdatedAt: now}))
 }
 
-func (t *storeTransaction) AssignRole(ctx context.Context, userID uuid.UUID, role string, now time.Time, assignedBy uuid.NullUUID) error {
-	return mapDatabaseError(t.q.AssignRole(ctx, generated.AssignRoleParams{UserID: userID, Name: role, AssignedAt: now, AssignedBy: assignedBy}))
+func (t *storeTransaction) AssignRole(ctx context.Context, userID uuid.UUID, role string, now time.Time, assignedBy uuid.NullUUID) (int64, error) {
+	count, err := t.q.AssignRole(ctx, generated.AssignRoleParams{UserID: userID, Name: role, AssignedAt: now, AssignedBy: assignedBy})
+	return count, mapDatabaseError(err)
 }
 
-func (t *storeTransaction) RemoveRole(ctx context.Context, userID uuid.UUID, role string) error {
-	return mapDatabaseError(t.q.RemoveRole(ctx, generated.RemoveRoleParams{UserID: userID, Name: role}))
+func (t *storeTransaction) RemoveRole(ctx context.Context, userID uuid.UUID, role string) (int64, error) {
+	count, err := t.q.RemoveRole(ctx, generated.RemoveRoleParams{UserID: userID, Name: role})
+	return count, mapDatabaseError(err)
+}
+
+func (t *storeTransaction) HasActiveRole(ctx context.Context, userID uuid.UUID, role string) (bool, error) {
+	value, err := t.q.HasActiveRole(ctx, generated.HasActiveRoleParams{UserID: userID, Name: role})
+	return value, mapDatabaseError(err)
+}
+
+func (t *storeTransaction) CountActiveAdministrators(ctx context.Context) (int64, error) {
+	count, err := t.q.CountActiveAdministrators(ctx)
+	return count, mapDatabaseError(err)
 }
 
 func (t *storeTransaction) CreateResetToken(ctx context.Context, id uuid.UUID, userID uuid.UUID, hash []byte, expiresAt, createdAt time.Time) error {
@@ -283,8 +304,9 @@ func (t *storeTransaction) ConsumeVerificationToken(ctx context.Context, id uuid
 	return count, mapDatabaseError(err)
 }
 
-func (t *storeTransaction) MarkEmailVerified(ctx context.Context, id uuid.UUID, now time.Time) error {
-	return mapDatabaseError(t.q.MarkEmailVerified(ctx, generated.MarkEmailVerifiedParams{ID: id, EmailVerifiedAt: sql.NullTime{Time: now, Valid: true}}))
+func (t *storeTransaction) MarkEmailVerified(ctx context.Context, id uuid.UUID, now time.Time) (int64, error) {
+	count, err := t.q.MarkEmailVerified(ctx, generated.MarkEmailVerifiedParams{ID: id, EmailVerifiedAt: sql.NullTime{Time: now, Valid: true}})
+	return count, mapDatabaseError(err)
 }
 
 func (t *storeTransaction) MarkServicePrincipalUsed(ctx context.Context, id uuid.UUID, now time.Time) error {
@@ -328,6 +350,12 @@ func nullableUUIDValue(value uuid.UUID) uuid.NullUUID {
 	}
 	return uuid.NullUUID{UUID: value, Valid: true}
 }
+func nullableUUIDPointer(value *uuid.UUID) uuid.NullUUID {
+	if value == nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: *value, Valid: true}
+}
 func nullableString(value *string) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
@@ -346,5 +374,5 @@ func mapDatabaseError(err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return domain.ErrConflict
 	}
-	return err
+	return fmt.Errorf("%w: %w", domain.ErrDependency, err)
 }

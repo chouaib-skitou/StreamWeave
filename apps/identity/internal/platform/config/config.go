@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
@@ -61,6 +62,8 @@ type Config struct {
 	RateResetSource      int
 	RateServiceSource    int
 }
+
+const maxRateLimit = 1_000_000
 
 func Load(source Source) (Config, error) {
 	c := Config{
@@ -156,6 +159,15 @@ func (c Config) Validate() error {
 	if c.MailerMode == "smtp" && (strings.TrimSpace(c.SMTPHost) == "" || c.SMTPPort <= 0 || strings.TrimSpace(c.SMTPFrom) == "") {
 		return errors.New("SMTP host, port, and from are required when SMTP mailer is enabled")
 	}
+	if c.MailerMode == "smtp" {
+		if strings.ContainsAny(c.SMTPFrom, "\r\n") {
+			return errors.New("IDENTITY_SMTP_FROM must not contain newlines")
+		}
+		parsedFrom, err := mail.ParseAddress(c.SMTPFrom)
+		if err != nil || parsedFrom.Address != strings.TrimSpace(c.SMTPFrom) {
+			return errors.New("IDENTITY_SMTP_FROM must be a plain email address")
+		}
+	}
 	if c.Environment == "production" && (strings.TrimSpace(c.SMTPUsername) == "" || strings.TrimSpace(c.SMTPPassword) == "") {
 		return errors.New("SMTP username and password are required in production")
 	}
@@ -166,8 +178,10 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Issuer) == "" || strings.TrimSpace(c.HumanAudience) == "" || strings.TrimSpace(c.MachineAudience) == "" || strings.TrimSpace(c.SigningKeyID) == "" {
 		return errors.New("Identity issuer, audiences, and signing key ID are required")
 	}
-	if c.RateLoginFailures <= 0 || c.RateRefreshMinute <= 0 || c.RateResetHour <= 0 || c.RateServiceMinute <= 0 || c.RateLoginSource <= 0 || c.RateRefreshSource <= 0 || c.RateResetSource <= 0 || c.RateServiceSource <= 0 {
-		return errors.New("Identity rate limits must be positive")
+	for _, limit := range []int{c.RateLoginFailures, c.RateRefreshMinute, c.RateResetHour, c.RateServiceMinute, c.RateLoginSource, c.RateRefreshSource, c.RateResetSource, c.RateServiceSource} {
+		if limit <= 0 || limit > maxRateLimit {
+			return fmt.Errorf("Identity rate limits must be between 1 and %d", maxRateLimit)
+		}
 	}
 	return nil
 }

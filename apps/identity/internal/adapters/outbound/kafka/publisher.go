@@ -20,7 +20,7 @@ func NewPublisher(brokers string) *Publisher {
 			addresses = append(addresses, trimmed)
 		}
 	}
-	return &Publisher{writer: &segmentkafka.Writer{Addr: segmentkafka.TCP(addresses...), Topic: "commerce.security.audit.v1", Balancer: &segmentkafka.Hash{}, RequiredAcks: segmentkafka.RequireOne, Async: false}}
+	return &Publisher{writer: &segmentkafka.Writer{Addr: segmentkafka.TCP(addresses...), Topic: "commerce.security.audit.v1", Balancer: &segmentkafka.Hash{}, RequiredAcks: segmentkafka.RequireAll, Async: false}}
 }
 
 func (p *Publisher) Publish(ctx context.Context, event identitypostgres.OutboxEvent) error {

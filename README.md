@@ -4,7 +4,11 @@ Portfolio-grade event-driven commerce platform in Go. The project demonstrates s
 
 ## Project status
 
-The repository is in the planning and architecture preparation phase. The product brief, project context, architecture decisions, contracts, implementation stories, and validation evidence are maintained under `docs/` as the platform is built.
+The platform is being built incrementally. The Identity Service is implemented
+on its feature branch with its contracts, persistence, local observability
+stack, Docker image workflow, Helm chart, and validation evidence. The remaining
+business services are still planned and will be delivered through reviewed
+feature branches.
 
 ## Documentation map
 

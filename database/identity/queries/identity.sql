@@ -11,14 +11,14 @@ INSERT INTO users (id, email, email_normalized, password_hash, status, created_a
 VALUES ($1, $2, $3, $4, $5, $6, $6)
 RETURNING id, email, email_normalized, password_hash, status, email_verified_at, created_at, updated_at;
 
--- name: UpdateUserStatus :exec
+-- name: UpdateUserStatus :execrows
 UPDATE users SET status = $2, updated_at = $3 WHERE id = $1;
 
 -- name: UpdatePassword :exec
 UPDATE users SET password_hash = $2, updated_at = $3 WHERE id = $1;
 
--- name: MarkEmailVerified :exec
-UPDATE users SET email_verified_at = $2, status = 'ACTIVE', updated_at = $2 WHERE id = $1;
+-- name: MarkEmailVerified :execrows
+UPDATE users SET email_verified_at = $2, status = 'ACTIVE', updated_at = $2 WHERE id = $1 AND status = 'PENDING_VERIFICATION';
 
 -- name: ListUserRoles :many
 SELECT r.name AS role_name, p.name AS permission_name
@@ -29,14 +29,21 @@ JOIN permissions p ON p.id = rp.permission_id
 WHERE ur.user_id = $1 AND r.status = 'ACTIVE'
 ORDER BY r.name, p.name;
 
--- name: AssignRole :exec
+-- name: AssignRole :execrows
 INSERT INTO user_roles (user_id, role_id, assigned_at, assigned_by)
 SELECT $1, id, $3, $4 FROM roles WHERE name = $2 AND status = 'ACTIVE'
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
--- name: RemoveRole :exec
+-- name: RemoveRole :execrows
 DELETE FROM user_roles ur USING roles r
 WHERE ur.user_id = $1 AND ur.role_id = r.id AND r.name = $2;
+
+-- name: HasActiveRole :one
+SELECT EXISTS (
+    SELECT 1 FROM user_roles ur
+    JOIN roles r ON r.id = ur.role_id
+    WHERE ur.user_id = $1 AND r.name = $2 AND r.status = 'ACTIVE'
+);
 
 -- name: CountActiveAdministrators :one
 SELECT count(*) FROM user_roles ur
@@ -44,12 +51,15 @@ JOIN roles r ON r.id = ur.role_id
 WHERE r.name = 'admin' AND r.status = 'ACTIVE';
 
 -- name: GetRoleByName :one
-SELECT id, name, description, status, created_at, updated_at FROM roles WHERE name = $1;
+SELECT id, name, description, status, created_at, updated_at FROM roles WHERE name = $1 AND status = 'ACTIVE';
 
 -- name: CreateSession :one
-INSERT INTO sessions (id, family_id, user_id, refresh_token_hash, status, expires_at, created_at, last_used_at, user_agent_hash, ip_prefix_hash)
-VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, $6, $7, $8)
+INSERT INTO sessions (id, family_id, user_id, refresh_token_hash, status, expires_at, created_at, last_used_at, user_agent_hash, ip_prefix_hash, rotated_from_session_id)
+VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $6, $6, $7, $8, $9)
 RETURNING id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at;
+
+-- name: LockActiveSession :one
+SELECT id FROM sessions WHERE id = $1 AND status = 'ACTIVE' FOR UPDATE;
 
 -- name: GetSessionByRefreshHash :one
 SELECT id, family_id, user_id, refresh_token_hash, status, expires_at, revoked_at, revoked_reason, rotated_from_session_id, replaced_by_session_id, created_at, last_used_at
@@ -138,6 +148,7 @@ FROM service_principals WHERE client_id = $1;
 SELECT id, service_principal_id, secret_hash, status, valid_from, retired_at, created_at, last_used_at
 FROM service_principal_credentials
 WHERE service_principal_id = $1 AND status = 'ACTIVE' AND valid_from <= $2
+  AND retired_at IS NULL
 ORDER BY valid_from DESC;
 
 -- name: MarkServicePrincipalUsed :exec

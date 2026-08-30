@@ -11,7 +11,7 @@ import (
 )
 
 type Querier interface {
-	AssignRole(ctx context.Context, arg AssignRoleParams) error
+	AssignRole(ctx context.Context, arg AssignRoleParams) (int64, error)
 	ConsumeResetToken(ctx context.Context, arg ConsumeResetTokenParams) (int64, error)
 	ConsumeVerificationToken(ctx context.Context, arg ConsumeVerificationTokenParams) (int64, error)
 	CountActiveAdministrators(ctx context.Context) (int64, error)
@@ -28,6 +28,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, emailNormalized string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetVerificationToken(ctx context.Context, tokenHash []byte) (VerificationToken, error)
+	HasActiveRole(ctx context.Context, arg HasActiveRoleParams) (bool, error)
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) error
 	InsertSecurityAudit(ctx context.Context, arg InsertSecurityAuditParams) error
 	ListActiveServiceCredentials(ctx context.Context, arg ListActiveServiceCredentialsParams) ([]ServicePrincipalCredential, error)
@@ -37,17 +38,18 @@ type Querier interface {
 	ListUserSessions(ctx context.Context, userID uuid.UUID) ([]ListUserSessionsRow, error)
 	ListUserSessionsPage(ctx context.Context, arg ListUserSessionsPageParams) ([]ListUserSessionsPageRow, error)
 	ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([]User, error)
-	MarkEmailVerified(ctx context.Context, arg MarkEmailVerifiedParams) error
+	LockActiveSession(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	MarkEmailVerified(ctx context.Context, arg MarkEmailVerifiedParams) (int64, error)
 	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
 	MarkOutboxPublished(ctx context.Context, arg MarkOutboxPublishedParams) error
 	MarkServicePrincipalUsed(ctx context.Context, arg MarkServicePrincipalUsedParams) error
-	RemoveRole(ctx context.Context, arg RemoveRoleParams) error
+	RemoveRole(ctx context.Context, arg RemoveRoleParams) (int64, error)
 	RevokeSessionByID(ctx context.Context, arg RevokeSessionByIDParams) error
 	RevokeSessionFamily(ctx context.Context, arg RevokeSessionFamilyParams) error
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) error
 	RotateSession(ctx context.Context, arg RotateSessionParams) (int64, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
-	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error
+	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

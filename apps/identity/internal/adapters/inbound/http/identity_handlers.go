@@ -66,7 +66,7 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
 			return
 		}
-		if s.revocations != nil {
+		if s.emergencyRevocation && s.revocations != nil {
 			revoked, checkErr := s.revocations.IsRevoked(r.Context(), claims.ID)
 			if checkErr != nil {
 				s.jwtVerification.WithLabelValues("revocation_check_error").Inc()
@@ -112,7 +112,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	user, err := s.identity.Register(r.Context(), identityapp.RegisterInput{Email: input.Email, Password: input.Password, SourceKey: s.requestSource(r)})
+	user, err := s.identity.Register(r.Context(), identityapp.RegisterInput{Email: input.Email, Password: input.Password, SourceKey: s.requestSource(r), CorrelationID: requestCorrelationID(r)})
 	if err != nil {
 		writeIdentityError(w, err)
 		return
@@ -128,13 +128,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	credentials, user, roles, err := s.identity.Login(r.Context(), identityapp.LoginInput{Email: input.Email, Password: input.Password, SourceKey: s.requestSource(r), CorrelationID: r.Header.Get("X-Correlation-ID")})
+	credentials, user, roles, err := s.identity.Login(r.Context(), identityapp.LoginInput{Email: input.Email, Password: input.Password, SourceKey: s.requestSource(r), CorrelationID: requestCorrelationID(r)})
 	if err != nil {
 		s.authentication.WithLabelValues(authOutcome(err)).Inc()
 		writeIdentityError(w, err)
 		return
 	}
 	s.authentication.WithLabelValues("success").Inc()
+	w.Header().Set("Cache-Control", "no-store")
 	_ = user
 	_ = roles
 	writeJSON(w, http.StatusOK, tokenResponse{AccessToken: credentials.AccessToken, RefreshToken: credentials.RefreshToken, TokenType: "Bearer", ExpiresIn: credentials.AccessTokenExpiresIn, RefreshExpiresIn: credentials.RefreshExpiresIn})
@@ -147,8 +148,9 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	credentials, _, _, err := s.identity.Refresh(r.Context(), identityapp.RefreshInput{RefreshToken: input.RefreshToken, SourceKey: s.requestSource(r), CorrelationID: r.Header.Get("X-Correlation-ID")})
+	credentials, _, _, err := s.identity.Refresh(r.Context(), identityapp.RefreshInput{RefreshToken: input.RefreshToken, SourceKey: s.requestSource(r), CorrelationID: requestCorrelationID(r)})
 	if err != nil {
+		s.logger.Warn("identity refresh rejected", "outcome", refreshOutcome(err))
 		s.refreshes.WithLabelValues(refreshOutcome(err)).Inc()
 		if errors.Is(err, domain.ErrRefreshReuse) {
 			s.refreshReuse.Inc()
@@ -157,6 +159,7 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.refreshes.WithLabelValues("success").Inc()
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, tokenResponse{AccessToken: credentials.AccessToken, RefreshToken: credentials.RefreshToken, TokenType: "Bearer", ExpiresIn: credentials.AccessTokenExpiresIn, RefreshExpiresIn: credentials.RefreshExpiresIn})
 }
 
@@ -172,9 +175,19 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
 		return
 	}
-	if err := s.identity.Logout(r.Context(), userID, sessionID, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.Logout(r.Context(), userID, sessionID, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
+	}
+	if s.emergencyRevocation && s.revocations != nil && claims.ExpiresAt != nil {
+		if revoker, ok := s.revocations.(interface {
+			Revoke(context.Context, string, time.Duration) error
+		}); ok {
+			if err := revoker.Revoke(r.Context(), claims.ID, time.Until(claims.ExpiresAt.Time)); err != nil {
+				problem(w, http.StatusServiceUnavailable, "service_unavailable", "Required dependency unavailable")
+				return
+			}
+		}
 	}
 	s.ObserveSessionRevocation("logout")
 	w.WriteHeader(http.StatusNoContent)
@@ -186,7 +199,7 @@ func (s *Server) logoutAll(w http.ResponseWriter, r *http.Request) {
 		problem(w, 401, "unauthorized", "Authentication failed")
 		return
 	}
-	if err := s.identity.LogoutAll(r.Context(), userID, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.LogoutAll(r.Context(), userID, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -301,7 +314,7 @@ func (s *Server) assignRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := parseUserRef(requestClaims(r).Subject)
-	if err := s.identity.AssignRole(r.Context(), target, actor, input.Role, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.AssignRole(r.Context(), target, actor, input.Role, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -318,7 +331,7 @@ func (s *Server) removeRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := parseUserRef(requestClaims(r).Subject)
-	if err := s.identity.RemoveRole(r.Context(), target, actor, r.PathValue("role"), r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.RemoveRole(r.Context(), target, actor, r.PathValue("role"), requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -341,7 +354,7 @@ func (s *Server) changeStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor, _ := parseUserRef(requestClaims(r).Subject)
-	if err := s.identity.ChangeUserStatus(r.Context(), target, input.Status, actor, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.ChangeUserStatus(r.Context(), target, input.Status, actor, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -355,7 +368,7 @@ func (s *Server) resetRequest(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	if err := s.identity.RequestPasswordResetFromSource(r.Context(), input.Email, s.requestSource(r), r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.RequestPasswordResetFromSource(r.Context(), input.Email, s.requestSource(r), requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -369,7 +382,7 @@ func (s *Server) resetConfirm(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	if err := s.identity.ConfirmPasswordReset(r.Context(), input.Token, input.NewPassword, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.ConfirmPasswordReset(r.Context(), input.Token, input.NewPassword, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -382,7 +395,7 @@ func (s *Server) verifyEmail(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	if err := s.identity.ConfirmEmail(r.Context(), input.Token, r.Header.Get("X-Correlation-ID")); err != nil {
+	if err := s.identity.ConfirmEmail(r.Context(), input.Token, requestCorrelationID(r)); err != nil {
 		writeIdentityError(w, err)
 		return
 	}
@@ -397,11 +410,12 @@ func (s *Server) serviceToken(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
-	result, err := s.identity.ServiceTokenFromSource(r.Context(), input.ClientID, input.ClientSecret, input.Scopes, s.requestSource(r), r.Header.Get("X-Correlation-ID"))
+	result, err := s.identity.ServiceTokenFromSource(r.Context(), input.ClientID, input.ClientSecret, input.Scopes, s.requestSource(r), requestCorrelationID(r))
 	if err != nil {
 		writeIdentityError(w, err)
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, 200, map[string]any{"access_token": result.AccessToken, "token_type": "Bearer", "expires_in": result.ExpiresIn})
 }
 func (s *Server) jwks(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, s.signer.JWKS()) }
@@ -451,6 +465,10 @@ func requestClaims(r *http.Request) *identitycrypto.Claims {
 	claims, _ := r.Context().Value(claimsContextKey{}).(*identitycrypto.Claims)
 	return claims
 }
+func requestCorrelationID(r *http.Request) string {
+	value, _ := r.Context().Value(correlationIDContextKey{}).(string)
+	return value
+}
 func hasScope(claims *identitycrypto.Claims, wanted string) bool {
 	if claims == nil {
 		return false
@@ -490,7 +508,9 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func problem(w http.ResponseWriter, status int, title, detail string) {
-	writeJSON(w, status, map[string]any{"type": "about:blank", "title": title, "status": status, "detail": detail})
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{"type": "about:blank", "title": title, "status": status, "detail": detail})
 }
 func writeIdentityError(w http.ResponseWriter, err error) {
 	switch {
@@ -507,6 +527,8 @@ func writeIdentityError(w http.ResponseWriter, err error) {
 		problem(w, 409, "conflict", "Request conflicts with existing state")
 	case errors.Is(err, domain.ErrDependency):
 		problem(w, 503, "service_unavailable", "Required dependency unavailable")
+	case errors.Is(err, domain.ErrInvalidInput):
+		problem(w, 400, "bad_request", "Invalid request")
 	case errors.Is(err, domain.ErrAlreadyUsed), errors.Is(err, domain.ErrExpired):
 		problem(w, 401, "unauthorized", "Authentication failed")
 	default:

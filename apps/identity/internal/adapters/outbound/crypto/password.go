@@ -18,6 +18,14 @@ type PasswordHasher struct {
 	keyLen  uint32
 }
 
+const (
+	maxArgonMemoryKiB  = 256 * 1024
+	maxArgonIterations = 10
+	maxArgonThreads    = 32
+	minArgonKeyLength  = 16
+	maxArgonKeyLength  = 64
+)
+
 func NewPasswordHasher() PasswordHasher {
 	return PasswordHasher{time: 3, memory: 64 * 1024, threads: 2, keyLen: 32}
 }
@@ -52,7 +60,7 @@ func (h PasswordHasher) Verify(password, encoded string) bool {
 	memory, memoryOK := parameters["m"]
 	iterations, iterationsOK := parameters["t"]
 	threads, threadsOK := parameters["p"]
-	if !memoryOK || !iterationsOK || !threadsOK || memory == 0 || iterations == 0 || threads == 0 || threads > 255 {
+	if !memoryOK || !iterationsOK || !threadsOK || memory == 0 || memory > maxArgonMemoryKiB || iterations == 0 || iterations > maxArgonIterations || threads == 0 || threads > maxArgonThreads {
 		return false
 	}
 	saltText, hashText := parts[4], parts[5]
@@ -62,6 +70,9 @@ func (h PasswordHasher) Verify(password, encoded string) bool {
 	}
 	expected, err := base64.RawStdEncoding.DecodeString(hashText)
 	if err != nil {
+		return false
+	}
+	if len(salt) < 8 || len(salt) > 64 || len(expected) < minArgonKeyLength || len(expected) > maxArgonKeyLength {
 		return false
 	}
 	actual := argon2.IDKey([]byte(password), salt, uint32(iterations), uint32(memory), uint8(threads), uint32(len(expected)))

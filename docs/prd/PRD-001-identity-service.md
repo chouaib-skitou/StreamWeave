@@ -1,8 +1,8 @@
 ---
 title: Identity Service
-status: proposed
+status: implemented
 created: 2026-08-29
-updated: 2026-08-29
+updated: 2026-08-30
 ---
 
 # PRD: Identity Service

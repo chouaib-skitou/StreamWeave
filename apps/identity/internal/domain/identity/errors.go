@@ -12,4 +12,5 @@ var (
 	ErrExpired            = errors.New("expired")
 	ErrAlreadyUsed        = errors.New("already used")
 	ErrDependency         = errors.New("dependency unavailable")
+	ErrInvalidInput       = errors.New("invalid input")
 )

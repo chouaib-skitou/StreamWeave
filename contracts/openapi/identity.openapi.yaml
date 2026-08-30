@@ -509,7 +509,10 @@ components:
       required: [status]
       additionalProperties: false
       properties:
-        status: { type: string, enum: [ok, ready, starting] }
+        status: { type: string, enum: [ok, ready, starting, not_ready] }
+        dependencies:
+          type: object
+          additionalProperties: { type: string, enum: [ok, unavailable] }
     User:
       type: object
       required: [id, email, status, roles, created_at]

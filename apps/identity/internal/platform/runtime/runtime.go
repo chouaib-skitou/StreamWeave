@@ -2,10 +2,13 @@ package runtime
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"net/smtp"
 	"strings"
 	"sync"
@@ -106,12 +109,58 @@ func (m *SMTPMailer) Send(ctx context.Context, kind, recipient, token string) er
 	}
 	boundary := "identity-mail-boundary"
 	body := fmt.Sprintf("From: %s\r\nTo: %s\r\nReply-To: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n--%s\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s\r\n--%s--\r\n--%s\r\nContent-Type: image/png; name=\"platform-logo.png\"\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <platform-logo>\r\nContent-Disposition: inline; filename=\"platform-logo.png\"\r\n\r\n%s\r\n--%s--\r\n", m.from, recipient, m.supportEmail, content.Subject, boundary, boundary, boundary+"-alternative", boundary+"-alternative", content.Text, boundary+"-alternative", content.HTML, boundary+"-alternative", boundary, wrapMIMEBase64(platformLogo), boundary)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	address := fmt.Sprintf("%s:%d", m.host, m.port)
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return fmt.Errorf("connect to SMTP relay: %w", err)
+	}
+	defer connection.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = connection.SetDeadline(deadline)
+	}
+	client, err := smtp.NewClient(connection, m.host)
+	if err != nil {
+		return fmt.Errorf("create SMTP client: %w", err)
+	}
+	defer client.Close()
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: m.host, MinVersion: tls.VersionTLS12}); err != nil {
+			return fmt.Errorf("start SMTP TLS: %w", err)
+		}
+	}
 	var auth smtp.Auth
 	if m.username != "" {
 		auth = smtp.PlainAuth("", m.username, m.password, m.host)
 	}
-	return smtp.SendMail(address, auth, m.from, []string{recipient}, []byte(body))
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("authenticate with SMTP relay: %w", err)
+		}
+	}
+	if err := client.Mail(m.from); err != nil {
+		return fmt.Errorf("set SMTP sender: %w", err)
+	}
+	if err := client.Rcpt(recipient); err != nil {
+		return fmt.Errorf("set SMTP recipient: %w", err)
+	}
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("open SMTP message: %w", err)
+	}
+	if _, err := io.WriteString(writer, body); err != nil {
+		_ = writer.Close()
+		return fmt.Errorf("write SMTP message: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("close SMTP message: %w", err)
+	}
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("close SMTP session: %w", err)
+	}
+	return nil
 }
 
 func wrapMIMEBase64(value []byte) string {

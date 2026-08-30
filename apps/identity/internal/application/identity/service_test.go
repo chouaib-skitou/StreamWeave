@@ -73,15 +73,32 @@ type fakeStore struct {
 	credentials           []domain.ServiceCredential
 	consumeCount          int64
 	rolesErr              error
+	emailErr              error
+	userErr               error
 	sessionErr            error
+	principalErr          error
+	credentialsErr        error
 	transactionErr        error
 	verificationCreateErr error
+	adminCount            int64
+	updateCount           int64
+	assignCount           int64
+	removeCount           int64
+	hasAdminRole          bool
+	hasRoleErr            error
+	lockActive            bool
+	lockErr               error
+	recordAuditErr        error
+	outboxErr             error
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{users: map[uuid.UUID]domain.User{}, byEmail: map[string]uuid.UUID{}, sessions: map[uuid.UUID]domain.Session{}, roles: map[uuid.UUID][]domain.RolePermission{}, reset: map[string]domain.OneTimeToken{}, consumeCount: 1}
+	return &fakeStore{users: map[uuid.UUID]domain.User{}, byEmail: map[string]uuid.UUID{}, sessions: map[uuid.UUID]domain.Session{}, roles: map[uuid.UUID][]domain.RolePermission{}, reset: map[string]domain.OneTimeToken{}, consumeCount: 1, adminCount: 2, updateCount: 1, assignCount: 1, removeCount: 1, hasAdminRole: true, lockActive: true}
 }
 func (s *fakeStore) FindUserByEmail(_ context.Context, email string) (domain.User, error) {
+	if s.emailErr != nil {
+		return domain.User{}, s.emailErr
+	}
 	id, ok := s.byEmail[email]
 	if !ok {
 		return domain.User{}, domain.ErrNotFound
@@ -89,6 +106,9 @@ func (s *fakeStore) FindUserByEmail(_ context.Context, email string) (domain.Use
 	return s.users[id], nil
 }
 func (s *fakeStore) FindUser(_ context.Context, id uuid.UUID) (domain.User, error) {
+	if s.userErr != nil {
+		return domain.User{}, s.userErr
+	}
 	user, ok := s.users[id]
 	if !ok {
 		return domain.User{}, domain.ErrNotFound
@@ -181,12 +201,18 @@ func (s *fakeStore) ListSessionsPage(_ context.Context, id uuid.UUID, query Sess
 	return page, nil
 }
 func (s *fakeStore) FindServicePrincipal(context.Context, string) (domain.ServicePrincipal, error) {
+	if s.principalErr != nil {
+		return domain.ServicePrincipal{}, s.principalErr
+	}
 	if s.principal.ID == uuid.Nil {
 		return domain.ServicePrincipal{}, domain.ErrNotFound
 	}
 	return s.principal, nil
 }
 func (s *fakeStore) ActiveServiceCredentials(context.Context, uuid.UUID, time.Time) ([]domain.ServiceCredential, error) {
+	if s.credentialsErr != nil {
+		return nil, s.credentialsErr
+	}
 	return s.credentials, nil
 }
 func (s *fakeStore) FindResetToken(context.Context, []byte) (domain.OneTimeToken, error) {
@@ -222,6 +248,13 @@ func (t *fakeTransaction) CreateSession(_ context.Context, session domain.Sessio
 	t.sessions[session.ID] = session
 	_, _, _ = refresh, userAgent, ipPrefix
 	return nil
+}
+func (t *fakeTransaction) LockActiveSession(_ context.Context, id uuid.UUID) (bool, error) {
+	if t.lockErr != nil {
+		return false, t.lockErr
+	}
+	session, ok := t.sessions[id]
+	return t.lockActive && ok && session.Status == domain.SessionActive, nil
 }
 func (t *fakeTransaction) RotateSession(_ context.Context, id, replacement uuid.UUID, now time.Time) (int64, error) {
 	session, ok := t.sessions[id]
@@ -263,11 +296,11 @@ func (t *fakeTransaction) RevokeUserSessions(_ context.Context, user uuid.UUID, 
 	}
 	return nil
 }
-func (t *fakeTransaction) UpdateUserStatus(_ context.Context, id uuid.UUID, status domain.UserStatus, now time.Time) error {
+func (t *fakeTransaction) UpdateUserStatus(_ context.Context, id uuid.UUID, status domain.UserStatus, now time.Time) (int64, error) {
 	user := t.users[id]
 	user.Status, user.UpdatedAt = status, now
 	t.users[id] = user
-	return nil
+	return t.updateCount, nil
 }
 func (t *fakeTransaction) UpdatePassword(_ context.Context, id uuid.UUID, hash string, now time.Time) error {
 	user := t.users[id]
@@ -275,11 +308,22 @@ func (t *fakeTransaction) UpdatePassword(_ context.Context, id uuid.UUID, hash s
 	t.users[id] = user
 	return nil
 }
-func (t *fakeTransaction) AssignRole(_ context.Context, id uuid.UUID, role string, _ time.Time, _ uuid.NullUUID) error {
+func (t *fakeTransaction) AssignRole(_ context.Context, id uuid.UUID, role string, _ time.Time, _ uuid.NullUUID) (int64, error) {
 	t.roles[id] = append(t.roles[id], domain.RolePermission{Role: role, Scope: role + ":scope"})
-	return nil
+	return t.assignCount, nil
 }
-func (t *fakeTransaction) RemoveRole(context.Context, uuid.UUID, string) error { return nil }
+func (t *fakeTransaction) RemoveRole(context.Context, uuid.UUID, string) (int64, error) {
+	return t.removeCount, nil
+}
+func (t *fakeTransaction) HasActiveRole(_ context.Context, _ uuid.UUID, role string) (bool, error) {
+	if t.hasRoleErr != nil {
+		return false, t.hasRoleErr
+	}
+	return role == "admin" && t.hasAdminRole, nil
+}
+func (t *fakeTransaction) CountActiveAdministrators(context.Context) (int64, error) {
+	return t.adminCount, nil
+}
 func (t *fakeTransaction) CreateResetToken(_ context.Context, id, user uuid.UUID, hash []byte, expires, _ time.Time) error {
 	t.reset[string(hash)] = domain.OneTimeToken{ID: id, UserID: user, ExpiresAt: expires}
 	t.resetToken = domain.OneTimeToken{ID: id, UserID: user, ExpiresAt: expires}
@@ -298,17 +342,29 @@ func (t *fakeTransaction) CreateVerificationToken(_ context.Context, id, user uu
 func (t *fakeTransaction) ConsumeVerificationToken(context.Context, uuid.UUID, time.Time) (int64, error) {
 	return t.consumeCount, nil
 }
-func (t *fakeTransaction) MarkEmailVerified(_ context.Context, id uuid.UUID, now time.Time) error {
+func (t *fakeTransaction) MarkEmailVerified(_ context.Context, id uuid.UUID, now time.Time) (int64, error) {
 	user := t.users[id]
 	user.EmailVerifiedAt, user.Status, user.UpdatedAt = &now, domain.UserActive, now
 	t.users[id] = user
-	return nil
+	return 1, nil
 }
 func (t *fakeTransaction) MarkServicePrincipalUsed(context.Context, uuid.UUID, time.Time) error {
 	return nil
 }
-func (t *fakeTransaction) RecordAudit(context.Context, AuditRecord) error   { t.audits++; return nil }
-func (t *fakeTransaction) RecordOutbox(context.Context, OutboxRecord) error { t.outbox++; return nil }
+func (t *fakeTransaction) RecordAudit(context.Context, AuditRecord) error {
+	if t.recordAuditErr != nil {
+		return t.recordAuditErr
+	}
+	t.audits++
+	return nil
+}
+func (t *fakeTransaction) RecordOutbox(context.Context, OutboxRecord) error {
+	if t.outboxErr != nil {
+		return t.outboxErr
+	}
+	t.outbox++
+	return nil
+}
 
 func newServiceForTest(t *testing.T, store *fakeStore, limiter Limiter) *Service {
 	t.Helper()
@@ -674,7 +730,7 @@ func TestRefreshReuseRevokesSessionFamily(t *testing.T) {
 		session.Status = domain.SessionRotated
 		store.sessions[id] = session
 	}
-	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); !errors.Is(err, domain.ErrInvalidCredentials) {
+	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); !errors.Is(err, domain.ErrInvalidCredentials) || !errors.Is(err, domain.ErrRefreshReuse) {
 		t.Fatalf("reused refresh: %v", err)
 	}
 	for _, session := range store.sessions {
@@ -703,6 +759,96 @@ func TestRefreshAndRoleLookupDependencyErrors(t *testing.T) {
 	store.rolesErr = errors.New("role storage unavailable")
 	if _, _, _, err := service.Refresh(context.Background(), RefreshInput{RefreshToken: credentials.RefreshToken}); err == nil {
 		t.Fatal("role lookup error was ignored")
+	}
+}
+
+func TestDependencyFailuresAndAdministrativeMutationGuards(t *testing.T) {
+	store := newFakeStore()
+	service := newServiceForTest(t, store, allowAll{})
+	ctx := context.Background()
+	store.recordAuditErr = errors.New("audit storage unavailable")
+	if _, err := service.Register(ctx, RegisterInput{Email: "audit-error@example.test", Password: "correct horse battery staple"}); !errors.Is(err, store.recordAuditErr) {
+		t.Fatalf("audit write failure: %v", err)
+	}
+	store.recordAuditErr = nil
+	store.outboxErr = errors.New("outbox storage unavailable")
+	if _, err := service.Register(ctx, RegisterInput{Email: "outbox-error@example.test", Password: "correct horse battery staple"}); !errors.Is(err, store.outboxErr) {
+		t.Fatalf("outbox write failure: %v", err)
+	}
+	store.outboxErr = nil
+	if err := service.RequestPasswordReset(ctx, "not-an-email", "corr"); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("invalid reset email: %v", err)
+	}
+
+	store.emailErr = errors.New("user lookup unavailable")
+	if _, _, _, err := service.Login(ctx, LoginInput{Email: "person@example.test", Password: "correct horse battery staple"}); !errors.Is(err, domain.ErrDependency) {
+		t.Fatalf("email lookup failure: %v", err)
+	}
+	store.emailErr = nil
+	user := registerAndVerify(t, service, "dependency@example.test")
+	credentials, _, _, err := service.Login(ctx, LoginInput{Email: user.Email, Password: "correct horse battery staple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.userErr = errors.New("user lookup unavailable")
+	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); !errors.Is(err, domain.ErrDependency) {
+		t.Fatalf("user lookup failure: %v", err)
+	}
+	store.userErr = nil
+	store.lockErr = errors.New("session lock unavailable")
+	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); !errors.Is(err, store.lockErr) {
+		t.Fatalf("session lock failure: %v", err)
+	}
+	store.lockErr = nil
+	store.lockActive = false
+	if _, _, _, err := service.Refresh(ctx, RefreshInput{RefreshToken: credentials.RefreshToken}); !errors.Is(err, domain.ErrInvalidCredentials) || !errors.Is(err, domain.ErrRefreshReuse) {
+		t.Fatalf("locked refresh reuse: %v", err)
+	}
+	store.lockActive = true
+
+	store.principal = domain.ServicePrincipal{ID: uuid.New(), ClientID: "inventory", Status: "ACTIVE", Audience: "platform-internal", Scopes: []string{"inventory:read"}}
+	store.principalErr = errors.New("principal lookup unavailable")
+	if _, err := service.ServiceToken(ctx, "inventory", "secret", []string{"inventory:read"}, "corr"); !errors.Is(err, domain.ErrDependency) {
+		t.Fatalf("principal lookup failure: %v", err)
+	}
+	store.principalErr = nil
+	store.credentialsErr = errors.New("credential lookup unavailable")
+	if _, err := service.ServiceToken(ctx, "inventory", "secret", []string{"inventory:read"}, "corr"); !errors.Is(err, domain.ErrDependency) {
+		t.Fatalf("credential lookup failure: %v", err)
+	}
+
+	store.credentialsErr = nil
+	store.hasRoleErr = errors.New("role lookup unavailable")
+	if err := service.ChangeUserStatus(ctx, user.ID, domain.UserDisabled, user.ID, "corr"); !errors.Is(err, store.hasRoleErr) {
+		t.Fatalf("role lookup failure: %v", err)
+	}
+	store.hasRoleErr = nil
+	store.updateCount = 0
+	if err := service.ChangeUserStatus(ctx, user.ID, domain.UserDisabled, user.ID, "corr"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing status target: %v", err)
+	}
+	store.updateCount = 1
+	store.assignCount = 0
+	if err := service.AssignRole(ctx, user.ID, user.ID, "admin", "corr"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing role target: %v", err)
+	}
+	store.assignCount = 1
+	store.adminCount = 1
+	if err := service.RemoveRole(ctx, user.ID, user.ID, "admin", "corr"); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("last administrator protection: %v", err)
+	}
+	if err := service.ChangeUserStatus(ctx, user.ID, domain.UserDisabled, user.ID, "corr"); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("last administrator disable protection: %v", err)
+	}
+	store.adminCount = 2
+	store.removeCount = 0
+	if err := service.RemoveRole(ctx, user.ID, user.ID, "customer", "corr"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("missing role removal: %v", err)
+	}
+	store.removeCount = 1
+	store.hasAdminRole = false
+	if err := service.RemoveRole(ctx, user.ID, user.ID, "admin", "corr"); err != nil {
+		t.Fatalf("non-administrator role removal: %v", err)
 	}
 }
 

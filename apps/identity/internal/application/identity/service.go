@@ -58,7 +58,7 @@ func NewService(options Options) (*Service, error) {
 	return &Service{store: options.Store, passwords: options.Passwords, tokens: options.Tokens, clock: options.Clock, limiter: options.Limiter, revocations: options.Revocations, mailer: options.Mailer, humanAudience: options.HumanAudience, machineAudience: options.MachineAudience}, nil
 }
 
-type RegisterInput struct{ Email, Password, SourceKey string }
+type RegisterInput struct{ Email, Password, SourceKey, CorrelationID string }
 type LoginInput struct{ Email, Password, CorrelationID, SourceKey string }
 type RefreshInput struct{ RefreshToken, CorrelationID, SourceKey string }
 type Credentials struct {
@@ -86,20 +86,28 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domain.Use
 		return domain.User{}, err
 	}
 	now := s.clock.Now().UTC()
-	user := domain.User{ID: uuid.New(), Email: strings.TrimSpace(input.Email), EmailNormalized: domain.NormalizeEmail(input.Email), PasswordHash: hash, Status: domain.UserPendingVerification, CreatedAt: now, UpdatedAt: now}
+	userID, err := newIdentityID()
+	if err != nil {
+		return domain.User{}, err
+	}
+	verificationID, err := newIdentityID()
+	if err != nil {
+		return domain.User{}, err
+	}
+	user := domain.User{ID: userID, Email: strings.TrimSpace(input.Email), EmailNormalized: domain.NormalizeEmail(input.Email), PasswordHash: hash, Status: domain.UserPendingVerification, CreatedAt: now, UpdatedAt: now}
 	err = s.store.WithTransaction(ctx, func(tx Transaction) error {
 		created, createErr := tx.CreateUser(ctx, user)
 		if createErr != nil {
 			return createErr
 		}
 		user = created
-		if err := tx.AssignRole(ctx, user.ID, "customer", now, uuid.NullUUID{}); err != nil {
+		if _, err := tx.AssignRole(ctx, user.ID, "customer", now, uuid.NullUUID{}); err != nil {
 			return err
 		}
-		if err := tx.CreateVerificationToken(ctx, uuid.New(), user.ID, verificationHash, now.Add(verifyTokenTTL), now); err != nil {
+		if err := tx.CreateVerificationToken(ctx, verificationID, user.ID, verificationHash, now.Add(verifyTokenTTL), now); err != nil {
 			return err
 		}
-		return s.recordAudit(ctx, tx, auditInput{Action: "register.succeeded", Outcome: "success", TargetID: userRef(user.ID), CorrelationID: "registration", At: now})
+		return s.recordAudit(ctx, tx, auditInput{Action: "register.succeeded", Outcome: "success", TargetID: userRef(user.ID), CorrelationID: input.CorrelationID, At: now})
 	})
 	if err == nil && s.mailer != nil {
 		err = s.mailer.Send(ctx, "email-verification", user.Email, verificationToken)
@@ -115,7 +123,13 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (Credentials, dom
 		return Credentials{}, domain.User{}, nil, err
 	}
 	user, err := s.store.FindUserByEmail(ctx, domain.NormalizeEmail(input.Email))
-	if err != nil || user.Status != domain.UserActive || !s.passwords.Verify(input.Password, user.PasswordHash) {
+	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return Credentials{}, domain.User{}, nil, domain.ErrDependency
+		}
+		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
+	}
+	if user.Status != domain.UserActive || user.EmailVerifiedAt == nil || !s.passwords.Verify(input.Password, user.PasswordHash) {
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
 	roles, err := s.store.UserRoles(ctx, user.ID)
@@ -135,11 +149,17 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 	}
 	session, err := s.store.FindSessionByRefreshHash(ctx, s.tokens.HashOpaque(input.RefreshToken))
 	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return Credentials{}, domain.User{}, nil, domain.ErrDependency
+		}
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
 	now := s.clock.Now().UTC()
 	user, err := s.store.FindUser(ctx, session.UserID)
 	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return Credentials{}, domain.User{}, nil, domain.ErrDependency
+		}
 		return Credentials{}, domain.User{}, nil, domain.ErrInvalidCredentials
 	}
 	if !session.IsUsable(now) || user.Status != domain.UserActive {
@@ -162,14 +182,28 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 	if err != nil {
 		return Credentials{}, domain.User{}, nil, err
 	}
-	replacementID := uuid.New()
+	replacementID, err := newIdentityID()
+	if err != nil {
+		return Credentials{}, domain.User{}, nil, err
+	}
 	access, err := s.tokens.Sign(userRef(user.ID), s.humanAudience, "human", replacementID.String(), roleNames(roles), scopeNames(roles), accessTokenTTL)
 	if err != nil {
 		return Credentials{}, domain.User{}, nil, err
 	}
-	newSession := domain.Session{ID: replacementID, FamilyID: session.FamilyID, UserID: user.ID, Status: domain.SessionActive, ExpiresAt: now.Add(refreshTokenTTL), CreatedAt: now, LastUsedAt: &now}
+	newSession := domain.Session{ID: replacementID, FamilyID: session.FamilyID, UserID: user.ID, Status: domain.SessionActive, RotatedFromSessionID: &session.ID, ExpiresAt: now.Add(refreshTokenTTL), CreatedAt: now, LastUsedAt: &now}
 	reuseDetected := false
 	err = s.store.WithTransaction(ctx, func(tx Transaction) error {
+		locked, err := tx.LockActiveSession(ctx, session.ID)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if !locked {
+			reuseDetected = true
+			if err := tx.RevokeSessionFamily(ctx, session.FamilyID, now, "refresh_reuse"); err != nil {
+				return err
+			}
+			return s.recordAudit(ctx, tx, auditInput{Action: "refresh.reuse_detected", Outcome: "failure", ActorID: userRef(user.ID), ActorType: "user", TargetID: userRef(session.ID), CorrelationID: input.CorrelationID, At: now})
+		}
 		if err := tx.CreateSession(ctx, newSession, refreshHash, nil, nil); err != nil {
 			return err
 		}
@@ -190,14 +224,21 @@ func (s *Service) Refresh(ctx context.Context, input RefreshInput) (Credentials,
 		return Credentials{}, domain.User{}, nil, err
 	}
 	if reuseDetected {
-		return Credentials{}, domain.User{}, nil, fmt.Errorf("%w: %v", domain.ErrInvalidCredentials, domain.ErrRefreshReuse)
+		return Credentials{}, domain.User{}, nil, fmt.Errorf("%w: %w", domain.ErrInvalidCredentials, domain.ErrRefreshReuse)
 	}
 	return Credentials{AccessToken: access, RefreshToken: refresh, AccessTokenExpiresIn: int(accessTokenTTL.Seconds()), RefreshExpiresIn: int(refreshTokenTTL.Seconds())}, user, roles, nil
 }
 
 func (s *Service) createSession(ctx context.Context, user domain.User, roles []domain.RolePermission, correlationID, action string) (Credentials, error) {
 	now := s.clock.Now().UTC()
-	sessionID, familyID := uuid.New(), uuid.New()
+	sessionID, err := newIdentityID()
+	if err != nil {
+		return Credentials{}, err
+	}
+	familyID, err := newIdentityID()
+	if err != nil {
+		return Credentials{}, err
+	}
 	refresh, refreshHash, err := s.tokens.NewOpaque(32)
 	if err != nil {
 		return Credentials{}, err
@@ -284,8 +325,27 @@ func (s *Service) ChangeUserStatus(ctx context.Context, targetID uuid.UUID, stat
 	}
 	now := s.clock.Now().UTC()
 	return s.store.WithTransaction(ctx, func(tx Transaction) error {
-		if err := tx.UpdateUserStatus(ctx, targetID, status, now); err != nil {
+		if status == domain.UserDisabled {
+			isAdmin, err := tx.HasActiveRole(ctx, targetID, "admin")
+			if err != nil {
+				return err
+			}
+			if isAdmin {
+				administrators, err := tx.CountActiveAdministrators(ctx)
+				if err != nil {
+					return err
+				}
+				if administrators <= 1 {
+					return domain.ErrConflict
+				}
+			}
+		}
+		updated, err := tx.UpdateUserStatus(ctx, targetID, status, now)
+		if err != nil {
 			return err
+		}
+		if updated == 0 {
+			return domain.ErrNotFound
 		}
 		if status == domain.UserDisabled {
 			if err := tx.RevokeUserSessions(ctx, targetID, now, "user_disabled"); err != nil {
@@ -306,8 +366,12 @@ func (s *Service) AssignRole(ctx context.Context, targetID, actorID uuid.UUID, r
 	}
 	now := s.clock.Now().UTC()
 	return s.store.WithTransaction(ctx, func(tx Transaction) error {
-		if err := tx.AssignRole(ctx, targetID, role, now, uuid.NullUUID{UUID: actorID, Valid: true}); err != nil {
+		assigned, err := tx.AssignRole(ctx, targetID, role, now, uuid.NullUUID{UUID: actorID, Valid: true})
+		if err != nil {
 			return err
+		}
+		if assigned == 0 {
+			return domain.ErrNotFound
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "role.assigned", Outcome: "success", ActorID: userRef(actorID), ActorType: "user", TargetID: userRef(targetID), CorrelationID: correlationID, At: now, Role: role})
 	})
@@ -316,8 +380,27 @@ func (s *Service) AssignRole(ctx context.Context, targetID, actorID uuid.UUID, r
 func (s *Service) RemoveRole(ctx context.Context, targetID, actorID uuid.UUID, role, correlationID string) error {
 	now := s.clock.Now().UTC()
 	return s.store.WithTransaction(ctx, func(tx Transaction) error {
-		if err := tx.RemoveRole(ctx, targetID, role); err != nil {
+		if role == "admin" {
+			isAdmin, err := tx.HasActiveRole(ctx, targetID, role)
+			if err != nil {
+				return err
+			}
+			if isAdmin {
+				administrators, err := tx.CountActiveAdministrators(ctx)
+				if err != nil {
+					return err
+				}
+				if administrators <= 1 {
+					return domain.ErrConflict
+				}
+			}
+		}
+		removed, err := tx.RemoveRole(ctx, targetID, role)
+		if err != nil {
 			return err
+		}
+		if removed == 0 {
+			return domain.ErrNotFound
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "role.removed", Outcome: "success", ActorID: userRef(actorID), ActorType: "user", TargetID: userRef(targetID), CorrelationID: correlationID, At: now, Role: role})
 	})
@@ -332,6 +415,9 @@ func (s *Service) RequestPasswordResetFromSource(ctx context.Context, email, sou
 }
 
 func (s *Service) requestPasswordReset(ctx context.Context, email, sourceKey, correlationID string) error {
+	if err := validateEmail(email); err != nil {
+		return err
+	}
 	if err := s.allowDimensions(ctx, "reset", domain.NormalizeEmail(email), sourceKey); err != nil {
 		return err
 	}
@@ -348,8 +434,12 @@ func (s *Service) requestPasswordReset(ctx context.Context, email, sourceKey, co
 	}
 	now := s.clock.Now().UTC()
 	expires := now.Add(resetTokenTTL)
+	tokenID, err := newIdentityID()
+	if err != nil {
+		return err
+	}
 	err = s.store.WithTransaction(ctx, func(tx Transaction) error {
-		if err := tx.CreateResetToken(ctx, uuid.New(), user.ID, hash, expires, now); err != nil {
+		if err := tx.CreateResetToken(ctx, tokenID, user.ID, hash, expires, now); err != nil {
 			return err
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "password_reset.requested", Outcome: "success", TargetID: userRef(user.ID), CorrelationID: correlationID, At: now})
@@ -405,8 +495,12 @@ func (s *Service) ConfirmEmail(ctx context.Context, token, correlationID string)
 		if consumed != 1 {
 			return domain.ErrAlreadyUsed
 		}
-		if err := tx.MarkEmailVerified(ctx, verification.UserID, now); err != nil {
+		updated, err := tx.MarkEmailVerified(ctx, verification.UserID, now)
+		if err != nil {
 			return err
+		}
+		if updated == 0 {
+			return domain.ErrInvalidCredentials
 		}
 		return s.recordAudit(ctx, tx, auditInput{Action: "email_verification.completed", Outcome: "success", TargetID: userRef(verification.UserID), CorrelationID: correlationID, At: now})
 	})
@@ -428,11 +522,20 @@ func (s *Service) serviceToken(ctx context.Context, clientID, secret string, req
 		return MachineCredentials{}, err
 	}
 	principal, err := s.store.FindServicePrincipal(ctx, clientID)
-	if err != nil || principal.Status != "ACTIVE" {
+	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return MachineCredentials{}, domain.ErrDependency
+		}
+		return MachineCredentials{}, domain.ErrInvalidCredentials
+	}
+	if principal.Status != "ACTIVE" {
 		return MachineCredentials{}, domain.ErrInvalidCredentials
 	}
 	credentials, err := s.store.ActiveServiceCredentials(ctx, principal.ID, s.clock.Now())
 	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return MachineCredentials{}, domain.ErrDependency
+		}
 		return MachineCredentials{}, domain.ErrInvalidCredentials
 	}
 	valid := false
@@ -480,19 +583,26 @@ func (s *Service) recordAudit(ctx context.Context, tx Transaction, input auditIn
 	if input.CorrelationID == "" {
 		input.CorrelationID = "identity"
 	}
-	aggregateID := "aud_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	eventID := "evt_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	auditID, err := newIdentityID()
+	if err != nil {
+		return err
+	}
+	aggregateID := "aud_" + strings.ReplaceAll(auditID.String(), "-", "")
+	outboxID, err := newIdentityID()
+	if err != nil {
+		return err
+	}
+	eventID := "evt_" + strings.ReplaceAll(outboxID.String(), "-", "")
 	data := map[string]any{"action": input.Action, "outcome": input.Outcome, "actor_id": nullableValue(input.ActorID), "actor_type": nullableValue(input.ActorType), "target_type": nullableValue("user"), "target_id": nullableValue(input.TargetID), "reason_code": nil, "role": nullableValue(input.Role)}
 	payload, err := json.Marshal(map[string]any{"event_id": eventID, "event_type": "commerce.security.audit.v1", "aggregate_type": "security_audit", "aggregate_id": aggregateID, "correlation_id": input.CorrelationID, "causation_id": nil, "occurred_at": input.At.Format(time.RFC3339Nano), "producer": "identity", "schema_version": 1, "data": data})
 	if err != nil {
 		return err
 	}
-	auditID := uuid.New()
 	actorID, actorType, targetID := optional(input.ActorID), optional(input.ActorType), optional(input.TargetID)
 	if err := tx.RecordAudit(ctx, AuditRecord{ID: auditID, ActorID: actorID, ActorType: actorType, Action: input.Action, TargetType: optional("user"), TargetID: targetID, Metadata: []byte(`{}`), CorrelationID: input.CorrelationID, OccurredAt: input.At}); err != nil {
 		return err
 	}
-	return tx.RecordOutbox(ctx, OutboxRecord{ID: uuid.New(), EventType: "commerce.security.audit.v1", AggregateType: "security_audit", AggregateID: aggregateID, Payload: payload, Headers: []byte(`{}`), CreatedAt: input.At})
+	return tx.RecordOutbox(ctx, OutboxRecord{ID: outboxID, EventType: "commerce.security.audit.v1", AggregateType: "security_audit", AggregateID: aggregateID, Payload: payload, Headers: []byte(`{"event_id":"` + eventID + `"}`), CreatedAt: input.At})
 }
 
 func (s *Service) allow(ctx context.Context, key string) error {
@@ -532,16 +642,27 @@ func (s *Service) allowDimensions(ctx context.Context, kind, account, source str
 	return nil
 }
 func validateCredentials(email, password string) error {
+	if err := validateEmail(email); err != nil || len(password) < 12 || len(password) > 128 {
+		return domain.ErrConflict
+	}
+	return nil
+}
+
+func validateEmail(email string) error {
 	normalized := domain.NormalizeEmail(email)
 	parsed, parseErr := mail.ParseAddress(normalized)
-	if parseErr != nil || parsed.Address != normalized || len(normalized) > 320 || len(password) < 12 || len(password) > 128 {
-		return domain.ErrConflict
+	if parseErr != nil || parsed.Address != normalized || len(normalized) > 320 {
+		return domain.ErrInvalidInput
 	}
 	return nil
 }
 func identityKey(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func newIdentityID() (uuid.UUID, error) {
+	return uuid.NewV7()
 }
 func userRef(id uuid.UUID) string { return "usr_" + strings.ReplaceAll(id.String(), "-", "") }
 func roleNames(values []domain.RolePermission) []string {

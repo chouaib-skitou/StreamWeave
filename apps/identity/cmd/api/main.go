@@ -113,6 +113,7 @@ func run() error {
 	}()
 	server := httpadapter.NewApplicationServer(cfg.HTTPAddr, cfg.MetricsPath, cfg.ReadinessTimeout, healthService, logger, identityService, signer, cache, cfg.HumanAudience, cfg.DemoRegistration, cfg.TestMailerEnabled, mailbox)
 	server.SetTrustProxyHeaders(cfg.TrustProxyHeaders)
+	server.SetEmergencyRevocation(cfg.EmergencyRevocation)
 	server.SetDBStatsProvider(database.DB().Stats)
 	relay.SetPublishObserver(server.ObserveOutboxPublish)
 	go func() {

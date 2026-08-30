@@ -39,14 +39,15 @@ const (
 )
 
 type Session struct {
-	ID         uuid.UUID
-	FamilyID   uuid.UUID
-	UserID     uuid.UUID
-	Status     SessionStatus
-	ExpiresAt  time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	LastUsedAt *time.Time
+	ID                   uuid.UUID
+	FamilyID             uuid.UUID
+	UserID               uuid.UUID
+	Status               SessionStatus
+	RotatedFromSessionID *uuid.UUID
+	ExpiresAt            time.Time
+	RevokedAt            *time.Time
+	CreatedAt            time.Time
+	LastUsedAt           *time.Time
 }
 
 func (s Session) IsUsable(now time.Time) bool {
