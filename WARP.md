@@ -1,6 +1,6 @@
 # Workspace Notes
 
-This is a greenfield Go monorepo for an event-driven e-commerce order management platform. The intended deployable applications are `gateway`, `identity`, `orders`, `inventory`, `payments`, `fulfillment`, and `notifications`.
+This is a greenfield Go monorepo for StreamWeave, an event-driven e-commerce order management platform. The intended deployable applications are `gateway`, `identity`, `orders`, `inventory`, `payments`, `fulfillment`, and `notifications`.
 
 ## Quick start
 

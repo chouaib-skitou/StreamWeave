@@ -1,4 +1,4 @@
-# Project Context — Event-Driven E-commerce Order Management Platform
+# Project Context — StreamWeave Event-Driven Commerce Platform
 
 ## Why this project exists
 

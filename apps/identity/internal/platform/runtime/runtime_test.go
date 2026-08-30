@@ -44,7 +44,7 @@ func TestIdentityEmailTemplatesRenderSecureActionLinks(t *testing.T) {
 	if !containsAll(content.HTML, "Verify email address", "https://app.example.test/verify-email?token=abc123") {
 		t.Fatalf("unexpected HTML template: %s", content.HTML)
 	}
-	if !containsAll(content.HTML, "cid:platform-logo", "Need help? Contact", "Security note", "Event Commerce") {
+	if !containsAll(content.HTML, "cid:platform-logo", "Need help? Contact", "Security note", "StreamWeave") {
 		t.Fatalf("shared email shell is incomplete: %s", content.HTML)
 	}
 }

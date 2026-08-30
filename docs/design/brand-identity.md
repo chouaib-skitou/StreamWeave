@@ -1,8 +1,8 @@
-# Event Commerce Platform Brand Identity
+# StreamWeave Brand Identity
 
 ## Direction
 
-Event Commerce Platform uses a confident dark foundation with a bright operational accent. The visual language combines dependable event flows with the energy of commerce: deep midnight surfaces, electric cyan actions, and a restrained violet signal for secondary emphasis.
+StreamWeave uses a confident dark foundation with a bright operational accent. The visual language combines dependable event flows with the energy of commerce: deep midnight surfaces, electric cyan actions, and a restrained violet signal for secondary emphasis.
 
 ## Palette
 

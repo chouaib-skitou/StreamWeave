@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Event-Driven E-commerce Identity API
+  title: StreamWeave Identity API
   version: 1.0.0
   description: Authentication, sessions, roles, service principals, and security operations for the platform.
 # Use the origin serving this contract. This keeps Swagger UI usable in local,

@@ -1,5 +1,5 @@
 image:
-  repository: identity
+  repository: streamweave-identity
   tag: local
   pullPolicy: IfNotPresent
 service:
