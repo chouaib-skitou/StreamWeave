@@ -109,4 +109,9 @@ Create alerts for sustained readiness failure, authentication failure spikes, re
 
 Identity images are built from reviewed `main` commits, tagged with the platform version, and published with SBOM/provenance when the platform release gate is operational. Migrations are backward-compatible. Rollback uses an older compatible image; database rollback is not assumed.
 
+The release workflow uses the ephemeral GitHub Actions `GITHUB_TOKEN` with
+`packages: write` for GHCR publication. The separate `RELEASE_TOKEN` is only
+needed for the machine-owned release commit, GitHub Release, and automatic
+`main` to `dev` metadata synchronization through protected branches.
+
 Operational drills must demonstrate key rotation, database recovery, Redis outage, outbox recovery, pod restart, and secret rotation using the runbooks in `docs/runbooks/`.
