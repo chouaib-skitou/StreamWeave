@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	identityapp "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/application/identity"
+	identityapp "github.com/chouaib-skitou/streamweave/apps/identity/internal/application/identity"
 	"github.com/google/uuid"
 )
 

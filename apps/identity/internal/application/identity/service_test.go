@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	identitycrypto "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/adapters/outbound/crypto"
-	domain "github.com/chouaib-skitou/event-driven-ecommerce-platform/apps/identity/internal/domain/identity"
+	identitycrypto "github.com/chouaib-skitou/streamweave/apps/identity/internal/adapters/outbound/crypto"
+	domain "github.com/chouaib-skitou/streamweave/apps/identity/internal/domain/identity"
 	"github.com/google/uuid"
 )
 
