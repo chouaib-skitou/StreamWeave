@@ -2,8 +2,13 @@ receivers:
   otlp:
     protocols: { grpc: {}, http: {} }
 exporters:
-  debug: {}
+  debug:
+    verbosity: basic
+  otlp/tempo:
+    endpoint: identity-tempo:4317
+    tls:
+      insecure: true
 service:
   pipelines:
-    traces: { receivers: [otlp], exporters: [debug] }
+    traces: { receivers: [otlp], exporters: [otlp/tempo, debug] }
     metrics: { receivers: [otlp], exporters: [debug] }

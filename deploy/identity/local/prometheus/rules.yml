@@ -1,0 +1,32 @@
+groups:
+  - name: identity
+    rules:
+      - alert: IdentityServiceDown
+        expr: up{job="identity"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: identity
+        annotations:
+          summary: Identity service is unavailable
+          description: Prometheus cannot scrape the Identity metrics endpoint.
+
+      - alert: IdentityHttpServerErrors
+        expr: increase(identity_http_requests_total{status="Internal Server Error"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity returned HTTP 500 responses
+          description: Identity returned one or more internal server errors during the last five minutes.
+
+      - alert: IdentityReadinessFailures
+        expr: increase(identity_http_requests_total{status="Service Unavailable"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: identity
+        annotations:
+          summary: Identity readiness or dependency checks failed
+          description: Identity returned service-unavailable responses during the last five minutes.

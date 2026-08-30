@@ -64,6 +64,68 @@ services:
     image: otel/opentelemetry-collector-contrib:0.117.0
     command: [--config=/etc/otelcol/config.yaml]
     volumes: [../otel-config.yaml:/etc/otelcol/config.yaml:ro]
+    depends_on:
+      identity-tempo: { condition: service_started }
+    ports: ['4317:4317', '4318:4318']
+
+  identity-tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - identity-local-tempo-data:/var/tempo
+    ports: ['3200:3200']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:3200/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules/identity.yml:ro
+      - identity-local-prometheus-data:/prometheus
+    depends_on:
+      identity: { condition: service_healthy }
+      identity-alertmanager: { condition: service_started }
+    ports: ['9090:9090']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:9090/-/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - identity-local-alertmanager-data:/alertmanager
+    ports: ['9093:9093']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:9093/-/ready], interval: 10s, timeout: 3s, retries: 5 }
+
+  identity-grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${IDENTITY_GRAFANA_ADMIN_USER:?set IDENTITY_GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${IDENTITY_GRAFANA_ADMIN_PASSWORD:?set IDENTITY_GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    volumes:
+      - identity-local-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      identity-prometheus: { condition: service_healthy }
+      identity-alertmanager: { condition: service_healthy }
+      identity-tempo: { condition: service_healthy }
+    ports: ['3001:3000']
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:3000/api/health], interval: 10s, timeout: 3s, retries: 10 }
 
 volumes:
   identity-local-postgres-data:
+  identity-local-tempo-data:
+  identity-local-prometheus-data:
+  identity-local-alertmanager-data:
+  identity-local-grafana-data:
