@@ -68,7 +68,7 @@ The domain and policy code must not depend on chi, PostgreSQL, Redis clients, JW
 
 Identity is the only component that owns private signing keys. Gateway trusts only the configured Identity issuer, audience, and EdDSA algorithm. JWKS is cached in memory with bounded freshness; an unknown key ID permits one refresh, then fails closed. A stale cache is not a reason to accept a token whose key cannot be verified.
 
-Downstream services must authenticate the Gateway service principal before trusting Gateway-provided actor context. The context contains only the actor subject, actor type, scopes, request ID, correlation ID, and trace context. It does not contain the original bearer token or credentials.
+Downstream services must authenticate the Gateway service principal before trusting Gateway-provided actor context. The context contains only the actor subject, actor type, active actor session ID, scopes, request ID, correlation ID, and trace context. It does not contain the original bearer token or credentials.
 
 ## Resilience policy
 

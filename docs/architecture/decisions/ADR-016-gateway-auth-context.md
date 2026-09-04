@@ -11,7 +11,7 @@ Identity signs human access tokens with EdDSA and publishes JWKS. Orders needs a
 
 ## Decision
 
-Gateway validates the incoming human token against the configured Identity issuer, audience, algorithm allowlist, claims, and key ID. Gateway strips all incoming internal identity headers and calls downstream services with a dedicated short-lived `svc_gateway` service credential. It forwards only a documented safe actor context and correlation/trace headers. Downstream services authenticate the service credential and may trust the context for request attribution, but they still perform final authorization.
+Gateway validates the incoming human token against the configured Identity issuer, audience, algorithm allowlist, claims, and key ID. Gateway strips all incoming internal identity headers and calls downstream services with a dedicated short-lived `svc_gateway` service credential. It forwards only a documented safe actor context, active actor session ID, and correlation/trace headers. Downstream services authenticate the service credential and may trust the context for request attribution, but they still perform final authorization.
 
 Human tokens must never be forwarded through Kafka, placed in logs/traces, or copied into downstream error responses.
 

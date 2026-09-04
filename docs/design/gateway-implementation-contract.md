@@ -56,7 +56,7 @@ Limit evaluation is atomic. A rejected request returns `429` and a bounded integ
 ## Upstream and response rules
 
 - Identity and Orders are addressed by configured logical service URLs; clients never choose an upstream.
-- Internal calls use `Authorization: Bearer <short-lived svc_gateway token>` plus `X-StreamWeave-Actor-ID`, `X-StreamWeave-Actor-Type`, `X-StreamWeave-Scopes`, `X-Request-ID`, and `X-Correlation-ID`. Actor type is `human` or `service`; scopes are sorted, space-delimited values. Downstream trusts these fields only after validating the service token.
+- Internal calls use `Authorization: Bearer <short-lived svc_gateway token>` plus `X-StreamWeave-Actor-ID`, `X-StreamWeave-Actor-Type`, `X-StreamWeave-Actor-Session-ID`, `X-StreamWeave-Scopes`, `X-Request-ID`, and `X-Correlation-ID`. Actor type is `human` or `service`; scopes are sorted, space-delimited values. Downstream trusts these fields only after validating the service token and the active actor session.
 - Only documented response headers are copied. Hop-by-hop headers and internal topology headers are removed.
 - A valid upstream Problem Details response is preserved after redaction of unsafe fields; an invalid or unsafe error body is replaced with the Gateway error for the mapped status.
 - Upstream `2xx`, `3xx`, `4xx`, and `5xx` statuses are copied only for documented operations. Connect failures map to `503`; deadline failures map to `504`.

@@ -1,0 +1,65 @@
+name: Gateway CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/gateway/**'
+      - 'apps/identity/**'
+      - 'database/identity/migrations/**'
+      - 'contracts/openapi/gateway.openapi.yaml'
+      - 'deploy/gateway/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/gateway-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Gateway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run tests with race detector and coverage
+        run: |
+          go test ./apps/gateway/... -race
+          go test ./apps/gateway/internal/application/gateway -coverprofile gateway-coverage.out
+      - name: Run security tests
+        run: go test -tags=security ./apps/gateway/tests/security/...
+      - name: Enforce Gateway coverage gate
+        shell: bash
+        run: |
+          coverage="$(go tool cover -func=gateway-coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')"
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 85.0) exit 1 }'
+          echo "Gateway coverage: ${coverage}%"
+      - name: Run vet and formatting checks
+        shell: bash
+        run: |
+          go vet ./apps/gateway/...
+          test -z "$(gofmt -l apps/gateway)"
+      - uses: azure/setup-helm@v4
+      - name: Validate Kubernetes chart
+        run: |
+          helm lint deploy/gateway/helm -f deploy/gateway/staging/values.yaml
+          helm lint deploy/gateway/helm -f deploy/gateway/production/values.yaml
+      - name: Validate local Compose
+        run: docker compose --env-file deploy/gateway/local/.env.example -f deploy/gateway/local/compose.yaml config
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate OpenAPI contract
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet pyyaml openapi-spec-validator
+          python -c "from pathlib import Path; import yaml; from openapi_spec_validator import validate; p=Path('contracts/openapi/gateway.openapi.yaml'); validate(yaml.safe_load(p.read_text(encoding='utf-8'))); print('Gateway OpenAPI contract is valid')"
+      - name: Build service
+        run: go build -trimpath -o /tmp/gateway ./apps/gateway/cmd/api

@@ -19,7 +19,7 @@ Unknown keys, invalid signatures, invalid claims, and unavailable verification d
 
 The incoming request is untrusted. Before proxying, Gateway strips client-provided values for:
 
-`X-StreamWeave-Actor-ID`, `X-StreamWeave-Actor-Type`, `X-StreamWeave-Scopes`, `X-Request-ID`, `X-Correlation-ID`, and any internal service-authentication header.
+`X-StreamWeave-Actor-ID`, `X-StreamWeave-Actor-Type`, `X-StreamWeave-Actor-Session-ID`, `X-StreamWeave-Scopes`, `X-Request-ID`, `X-Correlation-ID`, and any internal service-authentication header.
 
 Gateway then creates a trusted internal context after authenticating its service principal. The context is signed/authenticated by the internal call, contains the actor subject/type and normalized scopes, and is used for attribution only. Orders performs the final ownership and state checks.
 

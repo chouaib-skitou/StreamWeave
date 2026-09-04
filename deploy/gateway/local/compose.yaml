@@ -1,0 +1,58 @@
+services:
+  gateway-redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, no]
+    healthcheck: { test: [CMD, redis-cli, ping], interval: 5s, timeout: 3s, retries: 10 }
+
+  gateway:
+    build: { context: ../../.., dockerfile: deploy/gateway/Dockerfile }
+    environment:
+      GATEWAY_HTTP_ADDR: :8080
+      GATEWAY_ENVIRONMENT: development
+      GATEWAY_OPENAPI_PATH: /contracts/openapi/gateway.openapi.yaml
+      GATEWAY_IDENTITY_URL: http://host.docker.internal:8080
+      GATEWAY_JWKS_URL: http://host.docker.internal:8080/.well-known/jwks.json
+      GATEWAY_ORDERS_URL: ${GATEWAY_ORDERS_URL:?set GATEWAY_ORDERS_URL in .env}
+      GATEWAY_ISSUER: identity.local
+      GATEWAY_HUMAN_AUDIENCE: platform-api
+      GATEWAY_REDIS_URL: redis://gateway-redis:6379/0
+      GATEWAY_SERVICE_TOKEN: ${GATEWAY_SERVICE_TOKEN:?set GATEWAY_SERVICE_TOKEN in .env}
+      GATEWAY_OTEL_ENDPOINT: ""
+      GATEWAY_CORS_ORIGINS: http://localhost:3000
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      gateway-redis: { condition: service_healthy }
+    ports: ['8081:8080']
+    read_only: true
+    user: 'gateway'
+    healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:8080/health/ready], interval: 10s, timeout: 3s, retries: 10 }
+
+  gateway-prometheus:
+    image: prom/prometheus:v3.5.0
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules/gateway.yml:ro
+      - gateway-local-prometheus-data:/prometheus
+    depends_on:
+      gateway: { condition: service_healthy }
+    ports: ['9091:9090']
+
+  gateway-grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GATEWAY_GRAFANA_ADMIN_USER:?set GATEWAY_GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GATEWAY_GRAFANA_ADMIN_PASSWORD:?set GATEWAY_GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    volumes:
+      - gateway-local-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      gateway-prometheus: { condition: service_started }
+    ports: ['3002:3000']
+
+volumes:
+  gateway-local-prometheus-data:
+  gateway-local-grafana-data:

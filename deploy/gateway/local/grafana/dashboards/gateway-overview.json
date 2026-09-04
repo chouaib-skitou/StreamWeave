@@ -1,0 +1,15 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {"type":"stat","title":"Request rate","gridPos":{"h":4,"w":8,"x":0,"y":0},"targets":[{"expr":"sum(rate(gateway_http_requests_total[5m]))","refId":"A"}]},
+    {"type":"stat","title":"5xx rate","gridPos":{"h":4,"w":8,"x":8,"y":0},"targets":[{"expr":"sum(rate(gateway_http_requests_total{status=~\"5..\"}[5m]))","refId":"A"}]},
+    {"type":"stat","title":"Rate limited","gridPos":{"h":4,"w":8,"x":16,"y":0},"targets":[{"expr":"sum(rate(gateway_rate_limited_total[5m]))","refId":"A"}]},
+    {"type":"timeseries","title":"HTTP requests by status","gridPos":{"h":8,"w":24,"x":0,"y":4},"targets":[{"expr":"sum by (status) (rate(gateway_http_requests_total[5m]))","legendFormat":"{{status}}","refId":"A"}]},
+    {"type":"timeseries","title":"Authorization failures","gridPos":{"h":8,"w":24,"x":0,"y":12},"targets":[{"expr":"sum by (reason) (rate(gateway_authorization_failures_total[5m]))","legendFormat":"{{reason}}","refId":"A"}]}
+  ],
+  "schemaVersion": 39,
+  "title": "StreamWeave Gateway Overview",
+  "uid": "streamweave-gateway",
+  "version": 1
+}

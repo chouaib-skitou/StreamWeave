@@ -37,7 +37,7 @@ Gateway instances are stateless except for disposable in-memory caches. Scale ho
 
 ## CI and release contract
 
-Gateway changes must activate a dedicated Gateway verification job through path-aware CI. The job runs formatting, static analysis, unit tests with race detection, the minimum 85% application coverage gate, OpenAPI validation, security tests, container smoke tests, Helm lint/render, and local Compose configuration validation. It must not duplicate the complete Identity job when Identity files are unchanged.
+Gateway changes must activate a dedicated Gateway verification job through path-aware CI. The job runs formatting, static analysis, unit tests with race detection, the minimum 85% application coverage gate, OpenAPI validation, security tests, a container build, Helm lint, and local Compose configuration validation. It must not duplicate the complete Identity job when Identity files are unchanged.
 
 The main-branch release workflow remains the single publisher. When a release is created, it publishes the OCI image as `ghcr.io/chouaib-skitou/streamweave-gateway:v<version>` with the platform version tag, immutable commit tag, SBOM, and provenance. Gateway release metadata follows the existing `VERSION`/`CHANGELOG.md` synchronization and never stores registry credentials in the repository.
 
