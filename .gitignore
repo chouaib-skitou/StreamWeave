@@ -22,8 +22,12 @@ kubeconfig*
 /coverage
 /coverage.out
 /identity
+/foo
+/foo-bar
 /*-coverage.out
 /identity-coverage
+/$coverageProfile
+/$profile
 
 # Private project blueprint
 /01_event_driven_ecommerce_order_management_platform.md
