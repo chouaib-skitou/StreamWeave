@@ -16,7 +16,9 @@ Required configuration categories:
 
 ## Container
 
-The image must be minimal, deterministic, non-root, read-only-root-filesystem compatible, and contain no credentials. It exposes only the Gateway HTTP port. Health probes use `/health/live` and `/health/ready`; metrics are bound to an internal interface or protected network surface.
+The image must be minimal, deterministic, non-root, read-only-root-filesystem compatible, and contain no credentials. Gateway listens on container port `8080`, matching the service convention without requiring a host-port collision. Health probes use `/health/live` and `/health/ready`; metrics are bound to an internal interface or protected network surface.
+
+Local Compose maps `localhost:8081` to Gateway container port `8080`, because Identity already maps `localhost:8080` to its own container port `8080`. Kubernetes uses separate ClusterIP Services, so Gateway and Identity may both target container port `8080` without a conflict.
 
 ## Kubernetes
 
@@ -32,6 +34,12 @@ The production deployment must provide:
 ## Scaling and rollout
 
 Gateway instances are stateless except for disposable in-memory caches. Scale horizontally using CPU plus request/in-flight signals once those metrics are available. Readiness must drain new traffic before termination. Rolling updates must preserve at least one healthy instance and respect the PDB.
+
+## CI and release contract
+
+Gateway changes must activate a dedicated Gateway verification job through path-aware CI. The job runs formatting, static analysis, unit tests with race detection, the minimum 85% application coverage gate, OpenAPI validation, security tests, container smoke tests, Helm lint/render, and local Compose configuration validation. It must not duplicate the complete Identity job when Identity files are unchanged.
+
+The main-branch release workflow remains the single publisher. When a release is created, it publishes the OCI image as `ghcr.io/chouaib-skitou/streamweave-gateway:v<version>` with the platform version tag, immutable commit tag, SBOM, and provenance. Gateway release metadata follows the existing `VERSION`/`CHANGELOG.md` synchronization and never stores registry credentials in the repository.
 
 ## Local development
 

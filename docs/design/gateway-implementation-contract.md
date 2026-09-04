@@ -2,6 +2,17 @@
 
 This document closes the implementation-level defaults that are intentionally not repeated in the public OpenAPI description. Environment values may tighten these limits, but production values must not weaken the stated safety bounds without an ADR.
 
+## Port contract
+
+| Surface | Port |
+|---|---:|
+| Gateway container listen address | `:8080` |
+| Local host mapping | `localhost:8081 -> gateway:8080` |
+| Kubernetes Gateway Service | `8080 -> targetPort 8080` |
+| Existing local Identity mapping | `localhost:8080 -> identity:8080` |
+
+The local host ports are intentionally different. Internal container and Kubernetes Service ports are independently namespaced and may both use `8080`.
+
 ## Request limits and identity
 
 | Policy | Default | Hard upper bound |
@@ -33,6 +44,7 @@ Redis keys use the prefix `streamweave:gateway:ratelimit:v1`, contain only a one
 | Limit class | Default policy | Dimensions |
 |---|---|---|
 | `auth-write` | 10 requests/minute, burst 5 | source fingerprint; account fingerprint when present |
+| `demo-registration` | 5 requests/minute, burst 2 | source fingerprint |
 | `authenticated-read` | 120 requests/minute, burst 30 | subject + source fingerprint + route class |
 | `order-read` | 120 requests/minute, burst 30 | subject + source fingerprint + route class |
 | `order-write` | 30 requests/minute, burst 10 | subject + source fingerprint + route class |

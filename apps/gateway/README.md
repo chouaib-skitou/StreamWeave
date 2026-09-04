@@ -1,8 +1,10 @@
 # Gateway Service
 
-Status: documentation-ready; implementation intentionally not started.
+Status: ready-for-implementation; implementation intentionally not started.
 
 The Gateway is StreamWeave's explicit public HTTP edge. It owns request IDs, trace propagation, JWT/JWKS verification, coarse scopes, Redis rate limits, routing, standardized errors, and access logs. It does not own users, sessions, orders, business authorization, durable state, or a database.
+
+Planned local access is `http://localhost:8081`; Identity already uses `http://localhost:8080`. The Gateway container still listens on `:8080`, and Kubernetes gives each service a separate ClusterIP.
 
 ## Documentation
 

@@ -12,5 +12,6 @@ The Gateway is the public edge, not a business service.
 - Keep Redis disposable and fail closed for protected rate-limit policies when enforcement is unavailable.
 - Never retry authentication or non-idempotent mutations.
 - Use RFC 9457 Problem Details, request/trace correlation, low-cardinality telemetry, and strict redaction.
+- Maintain at least 85% application coverage and pass formatting, vet/static analysis, race-enabled tests, contract, security, and deployment validation gates.
 - Never commit secrets, `.env` files, tokens, private keys, or generated artifacts.
 - Update the Gateway docs and contract when behavior changes; use a conventional scoped commit and the branch/PR flow.

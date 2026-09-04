@@ -8,7 +8,7 @@ info:
     routing, and standardized errors. Identity and Orders remain authoritative
     for their own resources and business authorization.
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8081
     description: Local development
 tags:
   - name: Operations
@@ -74,6 +74,24 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/TokenResponse' } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /.well-known/register:
+    post:
+      tags: [Authentication]
+      operationId: gatewayRegisterDemoUser
+      description: Development/demo-only Identity route. Identity must keep it disabled in staging and production.
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterRequest' } } }
+      responses:
+        '201':
+          description: Demo user created and pending email verification
+          content: { application/json: { schema: { $ref: '#/components/schemas/User' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /v1/auth/refresh:
@@ -303,6 +321,13 @@ components:
       description: Upstream deadline exceeded
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
   schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        password: { type: string, minLength: 12, maxLength: 128, writeOnly: true }
     LoginRequest:
       type: object
       required: [email, password]
@@ -345,6 +370,16 @@ components:
         token_type: { type: string, const: Bearer }
         expires_in: { type: integer, const: 600, minimum: 1 }
         refresh_expires_in: { type: integer, minimum: 1 }
+    User:
+      type: object
+      required: [id, email, status, roles, created_at]
+      properties:
+        id: { type: string, pattern: '^usr_[A-Za-z0-9]+$' }
+        email: { type: string, format: email }
+        status: { type: string, enum: [ACTIVE, DISABLED, PENDING_VERIFICATION] }
+        roles: { type: array, items: { type: string } }
+        email_verified_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
     Session:
       type: object
       required: [id, family_id, status, created_at, expires_at]

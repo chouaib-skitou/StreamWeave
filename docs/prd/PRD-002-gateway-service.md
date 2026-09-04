@@ -1,6 +1,6 @@
 ---
 title: Gateway Service
-status: documentation-ready
+status: ready-for-implementation
 created: 2026-09-04
 updated: 2026-09-04
 ---
@@ -51,7 +51,7 @@ Give clients one reliable, observable, secure HTTP entry point for StreamWeave. 
 
 ### FR-1 — Public routing
 
-The Gateway shall expose only an explicit allowlist of versioned routes. It shall route Identity authentication/session paths to Identity and order paths to Orders. Unknown paths and unsupported methods shall not be proxied.
+The Gateway shall expose only an explicit allowlist of versioned routes, plus the Identity development-only `/.well-known/register` route when that feature is enabled locally. It shall route Identity authentication/session paths to Identity and order paths to Orders. Unknown paths and unsupported methods shall not be proxied.
 
 ### FR-2 — Request identity and tracing
 
@@ -92,6 +92,7 @@ The Gateway shall emit low-cardinality metrics, structured redacted logs, and Op
 - Orders receives no client-controlled identity context and retains final authorization and idempotency ownership.
 - No secret, bearer token, password, or full request body appears in logs, metrics, traces, or committed configuration.
 - The service can be built, tested, containerized, observed, and deployed with the operational contracts in this document.
+- The implementation satisfies the repository quality gate: formatting, static analysis, race-enabled tests, security tests, and at least 85% application coverage.
 
 ## 5.1 Contract impact
 

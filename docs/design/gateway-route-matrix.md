@@ -9,6 +9,7 @@ This matrix is the reviewable source for Gateway route registration. The OpenAPI
 | GET | `/metrics` | Gateway | Internal network | ops | metrics | 2s | none |
 | GET | `/v1/docs` | Gateway | None | None | health | 2s | none |
 | GET | `/v1/openapi.yaml` | Gateway | None | None | health | 2s | none |
+| POST | `/.well-known/register` | Identity | None | demo-registration | demo-registration | 5s | none |
 | POST | `/v1/auth/login` | Identity | None | anonymous-auth | auth-write | 5s | none |
 | POST | `/v1/auth/refresh` | Identity | None | anonymous-auth | auth-write | 5s | none |
 | POST | `/v1/auth/password-reset/request` | Identity | None | anonymous-auth | auth-write | 5s | none |
@@ -43,6 +44,10 @@ This matrix is the reviewable source for Gateway route registration. The OpenAPI
 | `orders:write:self` | Allows a customer mutation candidate; Orders validates business state and ownership. |
 | operator scope | Allows an operator candidate; Orders still checks role and resource policy. |
 | `ops` | Internal monitoring access only; never internet-public. |
+
+## Development-only routed surface
+
+- Identity `/.well-known/register` is routed only when local demo registration is explicitly enabled. Staging and production keep it disabled and return the documented disabled response.
 
 ## Explicitly not routed
 

@@ -25,7 +25,7 @@ Gateway then creates a trusted internal context after authenticating its service
 
 ## Authentication route policy
 
-Login, refresh, password reset, and email verification are anonymous but abuse-sensitive. They have separate rate-limit classes, do not retry automatically, do not reveal account existence where the Identity contract forbids it, and return the Identity-owned public error semantics through the common Problem Details envelope.
+Demo registration, login, refresh, password reset, and email verification are anonymous but abuse-sensitive. Demo registration is enabled only for local development; staging and production return the documented disabled response. These routes have separate rate-limit classes, do not retry automatically, do not reveal account existence where the Identity contract forbids it, and return the Identity-owned public error semantics through the common Problem Details envelope.
 
 ## Machine-to-machine policy
 
