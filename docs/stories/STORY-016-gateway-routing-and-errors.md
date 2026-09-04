@@ -10,13 +10,13 @@ The Gateway must preserve honest asynchronous semantics and prevent retries from
 
 ## Acceptance criteria
 
-- [ ] Given a valid request, when it is routed, then the owning service receives only the documented safe context.
-- [ ] Given `POST /v1/orders`, when the request is valid, then `Idempotency-Key` is required, validated, and forwarded unchanged.
-- [ ] Given `POST /v1/orders`, when `customer_id` is supplied, then Gateway forwards it as untrusted input and Orders verifies ownership before accepting the command.
-- [ ] Given an upstream timeout/unavailability, when the response is produced, then a safe 503/504 Problem Details response includes `request_id`.
-- [ ] Given a mutation or auth request, when transport failure occurs, then Gateway does not automatically retry it.
-- [ ] Given an idempotent read that fails before response headers, when policy allows, then at most one bounded retry occurs.
-- [ ] Given `202 Accepted` from Orders, when Gateway returns it, then it does not claim synchronous completion.
+- [x] Given a valid request, when it is routed, then the owning service receives only the documented safe context.
+- [x] Given `POST /v1/orders`, when the request is valid, then `Idempotency-Key` is required, validated, and forwarded unchanged.
+- [x] Given `POST /v1/orders`, when `customer_id` is supplied, then Gateway forwards it as untrusted input and Orders verifies ownership before accepting the command.
+- [x] Given an upstream timeout/unavailability, when the response is produced, then a safe 503/504 Problem Details response includes `request_id`.
+- [x] Given a mutation or auth request, when transport failure occurs, then Gateway does not automatically retry it.
+- [x] Given an idempotent read that fails before response headers, when policy allows, then at most one bounded retry occurs.
+- [x] Given `202 Accepted` from Orders, when Gateway returns it, then it does not claim synchronous completion.
 
 ## API changes
 

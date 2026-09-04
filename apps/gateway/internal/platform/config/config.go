@@ -86,8 +86,8 @@ func (c Config) Validate() error {
 	if c.ShutdownTimeout <= 0 || c.ReadinessTimeout <= 0 {
 		return errors.New("Gateway timeouts must be positive")
 	}
-	if c.MetricsPath == "" || !strings.HasPrefix(c.MetricsPath, "/") {
-		return errors.New("GATEWAY_METRICS_PATH must be an absolute HTTP path")
+	if c.MetricsPath != "/metrics" {
+		return errors.New("GATEWAY_METRICS_PATH must be /metrics")
 	}
 	if err := validateURL(c.IdentityURL, "GATEWAY_IDENTITY_URL"); err != nil {
 		return err
@@ -125,6 +125,14 @@ func (c Config) Validate() error {
 	}
 	if c.Environment == "staging" && (!isHTTPS(c.IdentityURL) || !isHTTPS(c.OrdersURL) || !isHTTPS(c.JWKSURL) || !isRediss(c.RedisURL)) {
 		return errors.New("staging internal HTTP and Redis URLs must use TLS")
+	}
+	if c.Environment != "development" {
+		if strings.TrimSpace(c.OTelEndpoint) == "" {
+			return errors.New("GATEWAY_OTEL_ENDPOINT is required outside development")
+		}
+		if c.OTelInsecure {
+			return errors.New("GATEWAY_OTEL_INSECURE must be false outside development")
+		}
 	}
 	if c.Environment != "development" && c.StaticServiceToken != "" {
 		return errors.New("static service token is allowed only in development")

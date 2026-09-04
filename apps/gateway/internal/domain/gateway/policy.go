@@ -24,6 +24,7 @@ type RoutePolicy struct {
 	RetrySafeRead bool
 	Mutation      bool
 	MaxBodyBytes  int64
+	RequireJSON   bool
 }
 
 func (p RoutePolicy) Allows(scopes []string) bool {
@@ -60,16 +61,16 @@ func DefaultPolicies() []RoutePolicy {
 		{Method: http.MethodGet, Pattern: "/metrics", Owner: "gateway", Auth: AuthNone, LimitClass: "metrics", Timeout: 2 * time.Second, MaxBodyBytes: 0},
 		{Method: http.MethodGet, Pattern: "/v1/docs", Owner: "gateway", Auth: AuthNone, LimitClass: "health", Timeout: 2 * time.Second, MaxBodyBytes: 0},
 		{Method: http.MethodGet, Pattern: "/v1/openapi.yaml", Owner: "gateway", Auth: AuthNone, LimitClass: "health", Timeout: 2 * time.Second, MaxBodyBytes: 0},
-		{Method: http.MethodPost, Pattern: "/.well-known/register", Owner: "identity", Auth: AuthNone, LimitClass: "demo-registration", Timeout: 5 * time.Second, MaxBodyBytes: 1 << 20},
-		{Method: http.MethodPost, Pattern: "/v1/auth/login", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
-		{Method: http.MethodPost, Pattern: "/v1/auth/refresh", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
-		{Method: http.MethodPost, Pattern: "/v1/auth/password-reset/request", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
-		{Method: http.MethodPost, Pattern: "/v1/auth/password-reset/confirm", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
-		{Method: http.MethodPost, Pattern: "/v1/auth/email-verification/confirm", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
+		{Method: http.MethodPost, Pattern: "/.well-known/register", Owner: "identity", Auth: AuthNone, LimitClass: "demo-registration", Timeout: 5 * time.Second, MaxBodyBytes: 1 << 20, RequireJSON: true},
+		{Method: http.MethodPost, Pattern: "/v1/auth/login", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20, RequireJSON: true},
+		{Method: http.MethodPost, Pattern: "/v1/auth/refresh", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20, RequireJSON: true},
+		{Method: http.MethodPost, Pattern: "/v1/auth/password-reset/request", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20, RequireJSON: true},
+		{Method: http.MethodPost, Pattern: "/v1/auth/password-reset/confirm", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20, RequireJSON: true},
+		{Method: http.MethodPost, Pattern: "/v1/auth/email-verification/confirm", Owner: "identity", Auth: AuthNone, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20, RequireJSON: true},
 		{Method: http.MethodPost, Pattern: "/v1/auth/logout", Owner: "identity", Auth: AuthBearer, Scopes: []string{"identity:sessions:write"}, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
 		{Method: http.MethodPost, Pattern: "/v1/auth/logout-all", Owner: "identity", Auth: AuthBearer, Scopes: []string{"identity:sessions:write"}, LimitClass: "auth-write", Timeout: 5 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
 		{Method: http.MethodGet, Pattern: "/v1/auth/sessions", Owner: "identity", Auth: AuthBearer, Scopes: []string{"identity:sessions:read"}, LimitClass: "authenticated-read", Timeout: 5 * time.Second, RetrySafeRead: true, MaxBodyBytes: 0},
-		{Method: http.MethodPost, Pattern: "/v1/orders", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:write:self", "orders:write:any"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 2 << 20},
+		{Method: http.MethodPost, Pattern: "/v1/orders", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:write:self", "orders:write:any"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 2 << 20, RequireJSON: true},
 		{Method: http.MethodGet, Pattern: "/v1/orders", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:read:self", "orders:read:any"}, LimitClass: "order-read", Timeout: 5 * time.Second, RetrySafeRead: true, MaxBodyBytes: 0},
 		{Method: http.MethodGet, Pattern: "/v1/orders/{order_id}", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:read:self", "orders:read:any"}, LimitClass: "order-read", Timeout: 5 * time.Second, RetrySafeRead: true, MaxBodyBytes: 0},
 		{Method: http.MethodPost, Pattern: "/v1/orders/{order_id}/cancel", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:cancel:self", "orders:cancel"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},

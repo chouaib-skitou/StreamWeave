@@ -16,6 +16,7 @@ import (
 
 	domain "github.com/chouaib-skitou/streamweave/apps/gateway/internal/domain/gateway"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var ErrNotReady = errors.New("jwks is not ready")
@@ -95,18 +96,19 @@ type Claims struct {
 }
 
 type Verifier struct {
-	fetcher      Fetcher
-	issuer       string
-	audience     string
-	now          func() time.Time
-	refreshAfter time.Duration
-	maxStale     time.Duration
-	mu           sync.Mutex
-	keys         map[string]ed25519.PublicKey
-	loadedAt     time.Time
-	cacheAge     time.Duration
-	refreshing   bool
-	refreshDone  chan struct{}
+	fetcher         Fetcher
+	issuer          string
+	audience        string
+	now             func() time.Time
+	refreshAfter    time.Duration
+	maxStale        time.Duration
+	mu              sync.Mutex
+	keys            map[string]ed25519.PublicKey
+	loadedAt        time.Time
+	cacheAge        time.Duration
+	refreshing      bool
+	refreshDone     chan struct{}
+	refreshObserver func(string)
 }
 
 func NewVerifier(fetcher Fetcher, issuer, audience string) (*Verifier, error) {
@@ -116,7 +118,13 @@ func NewVerifier(fetcher Fetcher, issuer, audience string) (*Verifier, error) {
 	return &Verifier{fetcher: fetcher, issuer: issuer, audience: audience, now: time.Now, refreshAfter: 5 * time.Minute, maxStale: 15 * time.Minute}, nil
 }
 
-func (v *Verifier) Check(ctx context.Context) error { return v.refresh(ctx) }
+func (v *Verifier) SetRefreshObserver(observer func(string)) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.refreshObserver = observer
+}
+
+func (v *Verifier) Check(ctx context.Context) error { return v.refresh(ctx, false) }
 
 func (v *Verifier) Verify(ctx context.Context, raw string) (domain.Actor, error) {
 	if strings.TrimSpace(raw) == "" {
@@ -135,7 +143,12 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (domain.Actor, error)
 		}
 		return key, nil
 	})
-	if err != nil || token == nil || !token.Valid || claims.TokenKind != "human" || claims.Subject == "" || claims.ID == "" {
+	if err != nil || token == nil || !token.Valid || claims.TokenKind != "human" ||
+		claims.Subject == "" || claims.ID == "" || claims.ExpiresAt == nil ||
+		claims.IssuedAt == nil || claims.NotBefore == nil || claims.SessionID == "" {
+		return domain.Actor{}, errors.New("invalid access token")
+	}
+	if _, err := uuid.Parse(claims.SessionID); err != nil {
 		return domain.Actor{}, errors.New("invalid access token")
 	}
 	return domain.Actor{Subject: claims.Subject, Type: "human", Roles: claims.Roles, Scopes: claims.Scopes, SessionID: claims.SessionID}, nil
@@ -149,7 +162,7 @@ func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, bool
 	if found && !stale {
 		return key, true
 	}
-	if err := v.refresh(ctx); err != nil {
+	if err := v.refresh(ctx, !found); err != nil {
 		return nil, false
 	}
 	v.mu.Lock()
@@ -158,12 +171,12 @@ func (v *Verifier) key(ctx context.Context, kid string) (ed25519.PublicKey, bool
 	return key, found && v.usableLocked()
 }
 
-func (v *Verifier) refresh(ctx context.Context) error {
-	if v.isFresh() {
+func (v *Verifier) refresh(ctx context.Context, force bool) error {
+	if !force && v.isFresh() {
 		return nil
 	}
 	v.mu.Lock()
-	if v.isFreshLocked() {
+	if !force && v.isFreshLocked() {
 		v.mu.Unlock()
 		return nil
 	}
@@ -184,12 +197,28 @@ func (v *Verifier) refresh(ctx context.Context) error {
 	keys, age, err := v.fetcher.Fetch(ctx)
 	v.mu.Lock()
 	if err == nil {
-		v.keys, v.loadedAt, v.cacheAge = keys, v.now().UTC(), age
+		v.keys, v.loadedAt, v.cacheAge = cloneKeys(keys), v.now().UTC(), age
 	}
 	v.refreshing = false
 	close(done)
+	observer := v.refreshObserver
 	v.mu.Unlock()
+	if observer != nil {
+		outcome := "success"
+		if err != nil {
+			outcome = "error"
+		}
+		observer(outcome)
+	}
 	return err
+}
+
+func cloneKeys(input map[string]ed25519.PublicKey) map[string]ed25519.PublicKey {
+	output := make(map[string]ed25519.PublicKey, len(input))
+	for kid, key := range input {
+		output[kid] = append(ed25519.PublicKey(nil), key...)
+	}
+	return output
 }
 
 // refreshError intentionally reports readiness from the cache after a concurrent refresh.

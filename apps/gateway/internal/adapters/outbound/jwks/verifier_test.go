@@ -33,16 +33,18 @@ func TestVerifierChecksClaimsAndRefreshesUnknownKid(t *testing.T) {
 	}
 	token := signed(t, private, "k1", "identity.local", "platform-api", "human")
 	actor, err := v.Verify(context.Background(), token)
-	if err != nil || actor.Subject != "user-1" || actor.Scopes[0] != "orders:read:self" {
+	if err != nil || actor.Subject != "usr_1" || actor.Scopes[0] != "orders:read:self" {
 		t.Fatalf("actor=%+v err=%v", actor, err)
 	}
-	_, unknownPrivate, _ := ed25519.GenerateKey(rand.Reader)
-	fetcher.keys["k2"] = public
+	unknownPublic, unknownPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	fetcher.keys = map[string]ed25519.PublicKey{"k1": public, "k2": unknownPublic}
 	unknown := signed(t, unknownPrivate, "k2", "identity.local", "platform-api", "human")
-	if _, err := v.Verify(context.Background(), unknown); err == nil {
-		t.Fatal("token signed by unknown private key should fail")
+	if _, err := v.Verify(context.Background(), unknown); err != nil {
+		t.Fatalf("new JWKS key was not loaded: %v", err)
 	}
-	_ = unknown
+	if fetcher.calls != 2 {
+		t.Fatalf("unknown kid should force one refresh, calls=%d", fetcher.calls)
+	}
 }
 
 func TestVerifierRejectsWrongTokenAndDependency(t *testing.T) {
@@ -70,7 +72,7 @@ func TestVerifierRejectsWrongTokenAndDependency(t *testing.T) {
 func signed(t *testing.T, private ed25519.PrivateKey, kid, issuer, audience, kind string) string {
 	t.Helper()
 	now := time.Now().UTC()
-	claims := Claims{Roles: []string{"customer"}, Scopes: []string{"orders:read:self"}, TokenKind: kind, RegisteredClaims: jwt.RegisteredClaims{Issuer: issuer, Subject: "user-1", Audience: []string{audience}, ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)), IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ID: "jti-1"}}
+	claims := Claims{Roles: []string{"customer"}, Scopes: []string{"orders:read:self"}, TokenKind: kind, SessionID: "550e8400-e29b-41d4-a716-446655440000", RegisteredClaims: jwt.RegisteredClaims{Issuer: issuer, Subject: "usr_1", Audience: []string{audience}, ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)), IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ID: "jti-1"}}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	token.Header["kid"] = kid
 	value, err := token.SignedString(private)

@@ -72,7 +72,16 @@ func run() error {
 			return err
 		}
 	}
-	upstream, err := upstreamhttp.NewClient(map[string]string{"identity": cfg.IdentityURL, "orders": cfg.OrdersURL}, &http.Client{Timeout: 12 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, cfg.MaxResponseBytes)
+	upstreamTransport := &http.Transport{
+		MaxConnsPerHost:       128,
+		MaxIdleConns:          256,
+		MaxIdleConnsPerHost:   64,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	upstream, err := upstreamhttp.NewClient(map[string]string{"identity": cfg.IdentityURL, "orders": cfg.OrdersURL}, &http.Client{Timeout: 12 * time.Second, Transport: upstreamTransport, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, cfg.MaxResponseBytes)
 	if err != nil {
 		return err
 	}

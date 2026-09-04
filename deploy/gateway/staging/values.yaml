@@ -15,6 +15,8 @@ config:
   serviceClientID: gateway
   serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:cancel"
   corsOrigins: "https://app.staging.streamweave.example"
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  otelInsecure: false
 secret:
   existingSecret: gateway-external
 resources:
@@ -32,6 +34,11 @@ networkPolicy:
   redisPodLabels: { app.kubernetes.io/name: redis }
   monitoringNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
   monitoringPodLabels: { app.kubernetes.io/name: prometheus }
+  ingressNamespaceLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  ingressPodLabels: { app.kubernetes.io/name: ingress-nginx }
+  ingressPort: 8080
+  identityPort: 443
+  ordersPort: 443
   dnsNamespaceLabels: { kubernetes.io/metadata.name: kube-system }
   dnsPodLabels: { k8s-app: kube-dns }
   otelNamespaceLabels: { kubernetes.io/metadata.name: monitoring }

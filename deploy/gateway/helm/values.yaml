@@ -45,6 +45,11 @@ networkPolicy:
   redisPodLabels: { app.kubernetes.io/name: redis }
   monitoringNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
   monitoringPodLabels: { app.kubernetes.io/name: prometheus }
+  ingressNamespaceLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  ingressPodLabels: { app.kubernetes.io/name: ingress-nginx }
+  ingressPort: 8080
+  identityPort: 8080
+  ordersPort: 8080
   dnsNamespaceLabels: { kubernetes.io/metadata.name: kube-system }
   dnsPodLabels: { k8s-app: kube-dns }
   otelNamespaceLabels: { kubernetes.io/metadata.name: monitoring }

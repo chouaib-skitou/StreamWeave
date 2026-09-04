@@ -54,7 +54,10 @@ func (c *Client) Check(ctx context.Context) error {
 	if c == nil || c.client == nil {
 		return errors.New("redis client is unavailable")
 	}
-	return c.client.Ping(ctx).Err()
+	// Probe the same command capability used by Allow. A plain PING can be
+	// permitted by Redis ACLs while EVAL is denied, which would make readiness
+	// green even though rate limiting cannot be enforced.
+	return c.client.Do(ctx, "EVAL", "return redis.call('PING')", 0).Err()
 }
 func (c *Client) Close() error {
 	if c == nil || c.client == nil {

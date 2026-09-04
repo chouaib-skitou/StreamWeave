@@ -4,11 +4,10 @@ StreamWeave is a portfolio-grade event-driven commerce platform in Go. It demons
 
 ## Project status
 
-The platform is being built incrementally. The Identity Service is implemented
-with its contracts, persistence, local observability stack, Docker image
-workflow, Helm chart, and validation evidence. The Gateway documentation gate
-is complete and implementation is the next reviewed feature slice. Remaining
-business services are still planned.
+The platform is being built incrementally. Identity and Gateway are implemented
+with their contracts, local observability stack, Docker image workflows, Helm
+charts, and validation evidence. Orders and the remaining business services are
+still planned.
 
 ## Documentation map
 

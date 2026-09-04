@@ -5,7 +5,7 @@ purpose: build-substrate
 altitude: feature
 paradigm: Clean / Hexagonal Architecture
 scope: Public HTTP edge, authentication verification, coarse authorization, routing, limits, errors, and telemetry
-status: ready-for-implementation
+status: implemented
 created: 2026-09-04
 updated: 2026-09-04
 sources:

@@ -10,11 +10,11 @@ Gateway is the public edge for the initial Identity and Orders routes. It must n
 
 ## Acceptance criteria
 
-- [ ] Given a documented method/path, when a request arrives, then it is dispatched only to its declared owner.
-- [ ] Given an unknown path or method, when a request arrives, then no upstream call occurs and a safe 404/405 response is returned.
-- [ ] Given no valid request ID, when a request arrives, then Gateway generates one and returns it.
-- [ ] Given an invalid body size/content type, when a request arrives, then it is rejected before proxying.
-- [ ] Given the OpenAPI contract, when route tests run, then every registered public route is covered.
+- [x] Given a documented method/path, when a request arrives, then it is dispatched only to its declared owner.
+- [x] Given an unknown path or method, when a request arrives, then no upstream call occurs and a safe 404/405 response is returned.
+- [x] Given no valid request ID, when a request arrives, then Gateway generates one and returns it.
+- [x] Given an invalid body size/content type, when a request arrives, then it is rejected before proxying.
+- [x] Given the OpenAPI contract, when route tests run, then every registered public route is covered.
 
 ## API changes
 

@@ -9,8 +9,8 @@ Prometheus, Alertmanager, Grafana, Tempo, or the OpenTelemetry Collector.
 - `monitoring/local/`: one Docker Compose observability stack for local development.
 - `monitoring/staging/`: the shared staging monitoring release contract.
 - `monitoring/production/`: the shared production monitoring release contract.
-- `deploy/<service>/`: application images, application Compose profiles, and
-  application Kubernetes charts only.
+- `deploy/<service>/`: application images and application Kubernetes charts.
+- `deploy/local/`: the single local application platform Compose definition.
 
 This separation keeps service deployment concerns independent from platform
 observability while retaining a single monitoring boundary for all services in

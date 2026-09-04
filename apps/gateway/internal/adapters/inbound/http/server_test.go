@@ -116,16 +116,16 @@ func TestProtectedRouteAndOrderValidation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/orders", strings.NewReader(`{"customer_id":"user-1"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer token")
-	req.Header.Set("Idempotency-Key", "key-1")
+	req.Header.Set("Idempotency-Key", "order-key-000001")
 	req.RemoteAddr = "192.0.2.10:1234"
 	response := httptest.NewRecorder()
 	server.httpServer.Handler.ServeHTTP(response, req)
-	if response.Code != 202 || upstream.input.IdempotencyKey != "key-1" || string(upstream.input.Body) == "" {
+	if response.Code != 202 || upstream.input.IdempotencyKey != "order-key-000001" || string(upstream.input.Body) == "" {
 		t.Fatalf("forward code=%d request=%+v", response.Code, upstream.input)
 	}
 	badMedia := httptest.NewRequest(http.MethodPost, "/v1/orders", strings.NewReader("x"))
 	badMedia.Header.Set("Authorization", "Bearer token")
-	badMedia.Header.Set("Idempotency-Key", "key")
+	badMedia.Header.Set("Idempotency-Key", "order-key-000002")
 	badMedia.RemoteAddr = "192.0.2.10:1234"
 	response = httptest.NewRecorder()
 	server.httpServer.Handler.ServeHTTP(response, badMedia)
@@ -157,5 +157,37 @@ func TestFailuresAndCORS(t *testing.T) {
 	server.httpServer.Handler.ServeHTTP(response, options)
 	if response.Code != 204 {
 		t.Fatalf("cors=%d", response.Code)
+	}
+}
+
+func TestRequestIdentityAndSessionPaginationAreBounded(t *testing.T) {
+	upstream := &upstreamStub{response: &domain.Response{StatusCode: http.StatusOK, Header: map[string][]string{"Content-Type": {"application/json"}}, Body: []byte(`{"sessions":[]}`)}}
+	server := newTestServer(t, verifierStub{actor: domain.Actor{Subject: "usr_1", Type: "human", Scopes: []string{"identity:sessions:read"}}}, limiterStub{allowed: true}, upstream, false)
+	requestWithHeaders := httptest.NewRequest(http.MethodGet, "/v1/auth/sessions?limit=101", nil)
+	requestWithHeaders.Header.Set("Authorization", "Bearer token")
+	requestWithHeaders.Header.Set("X-Request-ID", " invalid ")
+	requestWithHeaders.Header.Set("X-Correlation-ID", "also invalid")
+	requestWithHeaders.RemoteAddr = "192.0.2.10:1234"
+	response := httptest.NewRecorder()
+	server.httpServer.Handler.ServeHTTP(response, requestWithHeaders)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("session limit=%d", response.Code)
+	}
+	if response.Header().Get("X-Request-ID") == " invalid " || response.Header().Get("X-Correlation-ID") == "also invalid" {
+		t.Fatal("invalid request identity was copied")
+	}
+}
+
+func TestNewServerRejectsUndocumentedMetricsPath(t *testing.T) {
+	service, err := app.NewService(verifierStub{}, limiterStub{allowed: true}, tokenStub{}, &upstreamStub{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "gateway.openapi.yaml")
+	if err := os.WriteFile(path, []byte("openapi: 3.1.0"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewServer("127.0.0.1:0", "/internal-metrics", time.Second, service, verifierStub{}, limiterStub{allowed: true}, nil, path, false, false, nil); err == nil {
+		t.Fatal("undocumented metrics path accepted")
 	}
 }

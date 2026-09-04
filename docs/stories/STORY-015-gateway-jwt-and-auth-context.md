@@ -10,11 +10,11 @@ Identity owns signing keys and token issuance. Gateway performs coarse verificat
 
 ## Acceptance criteria
 
-- [ ] Given a valid EdDSA token, when its issuer, audience, time claims, `kid`, and required scope are valid, then the request may proceed.
-- [ ] Given an expired, malformed, wrong-audience, wrong-algorithm, invalid-signature, or unknown-key token, when verification runs, then the request fails closed with 401.
-- [ ] Given an unknown `kid`, when one bounded JWKS refresh cannot verify it, then no request is forwarded.
-- [ ] Given client-supplied actor headers, when proxying occurs, then they are stripped and replaced only by trusted context.
-- [ ] Given a downstream call, when authentication is attached, then it uses the Gateway service principal and never the human bearer.
+- [x] Given a valid EdDSA token, when its issuer, audience, time claims, `kid`, and required scope are valid, then the request may proceed.
+- [x] Given an expired, malformed, wrong-audience, wrong-algorithm, invalid-signature, or unknown-key token, when verification runs, then the request fails closed with 401.
+- [x] Given an unknown `kid`, when one bounded JWKS refresh cannot verify it, then no request is forwarded.
+- [x] Given client-supplied actor headers, when proxying occurs, then they are stripped and replaced only by trusted context.
+- [x] Given a downstream call, when authentication is attached, then it uses the Gateway service principal and never the human bearer.
 
 ## API changes
 

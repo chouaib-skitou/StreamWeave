@@ -10,11 +10,11 @@ Anonymous auth routes and protected order mutations have different abuse profile
 
 ## Acceptance criteria
 
-- [ ] Given traffic within policy, when Redis evaluates the route limit, then the request proceeds.
-- [ ] Given an exhausted limit, when a request arrives, then Gateway returns RFC 9457 `429` with `Retry-After`.
-- [ ] Given a limiter failure on an auth or mutation route, when policy cannot be enforced, then Gateway fails closed with safe `503`.
-- [ ] Given a health request, when Redis is unavailable, then liveness remains local and does not create a restart loop.
-- [ ] Given limits, when telemetry is emitted, then labels remain route/limit class only.
+- [x] Given traffic within policy, when Redis evaluates the route limit, then the request proceeds.
+- [x] Given an exhausted limit, when a request arrives, then Gateway returns RFC 9457 `429` with `Retry-After`.
+- [x] Given a limiter failure on an auth or mutation route, when policy cannot be enforced, then Gateway fails closed with safe `503`.
+- [x] Given a health request, when Redis is unavailable, then liveness remains local and does not create a restart loop.
+- [x] Given limits, when telemetry is emitted, then labels remain route/limit class only.
 
 ## API changes
 

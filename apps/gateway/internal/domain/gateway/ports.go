@@ -1,6 +1,9 @@
 package gateway
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type ClaimsVerifier interface {
 	Verify(context.Context, string) (Actor, error)
@@ -24,9 +27,19 @@ type UpstreamClient interface {
 	Forward(context.Context, string, string, *Actor, ForwardRequest) (*Response, error)
 }
 
+type Metrics interface {
+	ObserveAuthFailure(string, string)
+	ObserveRateLimitRejection(string, string)
+	ObserveRateLimiterError(string)
+	ObserveJWKSRefresh(string)
+	ObserveUpstreamRequest(string, string, string)
+	ObserveUpstreamDuration(string, string, time.Duration)
+}
+
 type ForwardRequest struct {
 	Method         string
 	Path           string
+	Route          string
 	RawQuery       string
 	Body           []byte
 	ContentType    string

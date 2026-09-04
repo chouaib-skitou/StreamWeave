@@ -23,14 +23,11 @@ identity-build:
 identity-image:
 	docker build -f deploy/identity/Dockerfile -t streamweave-identity:local .
 
-identity-local-env:
-	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'deploy/identity/local/.env')) { Copy-Item -LiteralPath 'deploy/identity/local/.env.example' -Destination 'deploy/identity/local/.env'; Write-Output 'Created deploy/identity/local/.env from .env.example (local-only, ignored by Git). Update passwords if needed.' }"
+identity-local-env: local-env
 
-identity-compose-up: identity-local-env
-	docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml up -d --build
+identity-compose-up: local-up
 
-identity-compose-down: identity-local-env
-	docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml down -v
+identity-compose-down: local-down
 
 identity-kind-deploy:
 	helm upgrade --install identity deploy/identity/helm --namespace identity --create-namespace
@@ -54,14 +51,11 @@ gateway-build:
 gateway-image:
 	docker build -f deploy/gateway/Dockerfile -t streamweave-gateway:local .
 
-gateway-local-env:
-	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'deploy/gateway/local/.env')) { Copy-Item -LiteralPath 'deploy/gateway/local/.env.example' -Destination 'deploy/gateway/local/.env'; Write-Output 'Created deploy/gateway/local/.env from .env.example (local-only, ignored by Git).' }"
+gateway-local-env: local-env
 
-gateway-compose-up: gateway-local-env
-	docker compose --env-file deploy/gateway/local/.env -f deploy/gateway/local/compose.yaml up -d --build
+gateway-compose-up: local-up
 
-gateway-compose-down: gateway-local-env
-	docker compose --env-file deploy/gateway/local/.env -f deploy/gateway/local/compose.yaml down -v
+gateway-compose-down: local-down
 
 gateway-kind-deploy:
 	helm upgrade --install gateway deploy/gateway/helm --namespace ecommerce-gateway --create-namespace

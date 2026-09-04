@@ -2,7 +2,12 @@
 
 ## Environment contract
 
-Environment-specific files belong under `deploy/gateway/local`, `deploy/gateway/staging`, and `deploy/gateway/production`. Commit only examples and non-sensitive defaults. Secrets are injected by the environment's secret manager or Kubernetes Secret reference; `.env` files and kubeconfigs remain ignored.
+Environment-specific application files belong under `deploy/gateway/staging` and
+`deploy/gateway/production`. Local application deployment is centralized in
+`deploy/local/compose.yaml`, while shared observability is centralized in
+`monitoring/local/compose.yaml`. Commit only examples and non-sensitive defaults.
+Secrets are injected by the environment's secret manager or Kubernetes Secret
+reference; `.env` files and kubeconfigs remain ignored.
 
 Required configuration categories:
 
@@ -43,4 +48,8 @@ The main-branch release workflow remains the single publisher. When a release is
 
 ## Local development
 
-Local Compose should run Gateway with Identity, Orders dependencies required by the current milestone, Redis, and the observability stack. Mail delivery belongs to Identity/MailHog, not Gateway. Local configuration must be reproducible from `.env.example` without committing a real `.env`.
+Local Compose runs Gateway with Identity, Redis, MailHog, and the shared
+observability stack. Orders is not implemented yet; its URL remains an explicit
+configuration boundary. Mail delivery belongs to Identity/MailHog, not Gateway.
+Local configuration is reproducible from `monitoring/local/.env.example` without
+committing a real `.env`.

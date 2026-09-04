@@ -10,13 +10,13 @@ Gateway is a stateless public edge whose outages can affect every client. Operat
 
 ## Acceptance criteria
 
-- [ ] Given a local environment, when the documented Compose command runs, then health, metrics, logs, and traces are inspectable without committed secrets.
-- [ ] Given a Kubernetes deployment, when manifests are rendered, then non-root security, probes, resources, PDB, HPA, and restrictive network policy are present.
-- [ ] Given a Gateway change, when path-aware CI runs, then Gateway quality checks execute without unnecessarily duplicating unrelated service suites.
-- [ ] Given a release on `main`, when the release workflow publishes images, then `streamweave-gateway:v<version>` is built with SBOM/provenance and the existing registry permissions.
-- [ ] Given telemetry, when logs/metrics/traces are inspected, then no token, password, cookie, body, or unbounded identifier is present.
-- [ ] Given sustained errors/latency/JWKS/limiter failures, when alert rules evaluate, then an operator can identify the route class and dependency.
-- [ ] Given an outage, when the relevant runbook is followed, then recovery does not disable authentication or rate-limit safety controls.
+- [x] Given a local environment, when the documented Compose command runs, then health, metrics, logs, and traces are inspectable without committed secrets.
+- [x] Given a Kubernetes deployment, when manifests are rendered, then non-root security, probes, resources, PDB, HPA, and restrictive network policy are present.
+- [x] Given a Gateway change, when path-aware CI runs, then Gateway quality checks execute without unnecessarily duplicating unrelated service suites.
+- [x] Given a release on `main`, when the release workflow publishes images, then `streamweave-gateway:v<version>` is built with SBOM/provenance and the existing registry permissions.
+- [x] Given telemetry, when logs/metrics/traces are inspected, then no token, password, cookie, body, or unbounded identifier is present.
+- [x] Given sustained errors/latency/JWKS/limiter failures, when alert rules evaluate, then an operator can identify the route class and dependency.
+- [x] Given an outage, when the relevant runbook is followed, then recovery does not disable authentication or rate-limit safety controls.
 
 ## API changes
 

@@ -2,7 +2,7 @@
 
 | Profile | Mail transport | Purpose |
 |---|---|---|
-| `local/` | MailHog SMTP (`localhost:1025`) | Real local email capture and HTML preview at `localhost:8025` |
+| `deploy/local/` | MailHog SMTP (`localhost:1025`) | Real local email capture and HTML preview at `localhost:8025` |
 | `staging/` | Mailtrap Email Sandbox | Safe shared-environment inspection without delivery to customers |
 | `production/` | Mailtrap Email Sending | Verified-domain transactional delivery |
 
@@ -14,7 +14,7 @@ root directory contains only shared deployment assets and the Helm chart. SMTP c
 `.env` files, CI/CD secret stores, or Kubernetes Secrets; they are never
 committed.
 
-The canonical local platform commands are documented in `../local/README.md` and
-exposed through `make local-up` and `make local-down`. The service-only commands
-`make identity-compose-up` and `make identity-compose-down` remain available
-when shared observability is not needed.
+The canonical local platform commands are documented in `../../deploy/local/README.md`
+and exposed through `make local-up` and `make local-down`. The compatibility
+commands `make identity-compose-up` and `make identity-compose-down` delegate to
+the same single platform stack.

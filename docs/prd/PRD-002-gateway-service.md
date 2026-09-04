@@ -1,6 +1,6 @@
 ---
 title: Gateway Service
-status: ready-for-implementation
+status: implemented
 created: 2026-09-04
 updated: 2026-09-04
 ---
@@ -9,7 +9,7 @@ updated: 2026-09-04
 
 ## 0. Document purpose
 
-This document is the product and behavior contract for the public Gateway of StreamWeave. It is derived from `01_event_driven_ecommerce_order_management_platform.md`, `docs/brief.md`, `docs/project_context.md`, and the approved Identity documentation. It must be accepted before Gateway implementation begins.
+This document is the product and behavior contract for the implemented public Gateway of StreamWeave. It is derived from `01_event_driven_ecommerce_order_management_platform.md`, `docs/brief.md`, `docs/project_context.md`, and the approved Identity documentation.
 
 The Gateway is a lightweight public edge, not a business-service replacement or a general API-management product. It authenticates requests, applies coarse policy, routes them to the owning service, and presents a stable public HTTP contract.
 

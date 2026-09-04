@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	domain "github.com/chouaib-skitou/streamweave/apps/gateway/internal/domain/gateway"
 )
@@ -77,6 +78,21 @@ type upstreamStub struct {
 	owner    string
 	token    string
 }
+
+type metricsStub struct {
+	authFailures        int
+	rateLimitRejections int
+	limiterErrors       int
+	upstreamRequests    int
+	upstreamDurations   int
+}
+
+func (m *metricsStub) ObserveAuthFailure(string, string)                     { m.authFailures++ }
+func (m *metricsStub) ObserveRateLimitRejection(string, string)              { m.rateLimitRejections++ }
+func (m *metricsStub) ObserveRateLimiterError(string)                        { m.limiterErrors++ }
+func (m *metricsStub) ObserveJWKSRefresh(string)                             {}
+func (m *metricsStub) ObserveUpstreamRequest(string, string, string)         { m.upstreamRequests++ }
+func (m *metricsStub) ObserveUpstreamDuration(string, string, time.Duration) { m.upstreamDurations++ }
 
 func (u *upstreamStub) Forward(_ context.Context, owner, token string, _ *domain.Actor, _ domain.ForwardRequest) (*domain.Response, error) {
 	u.owner, u.token = owner, token
@@ -200,6 +216,34 @@ func TestForwardRefreshesOnlySafeReadAfterServiceUnauthorized(t *testing.T) {
 	service, _ = NewService(verifierStub{}, &limiterStub{allowed: true}, nonRefreshableTokenStub{}, &sequenceUpstreamStub{responses: []*domain.Response{{StatusCode: 401}}})
 	if response, err := service.Forward(context.Background(), "orders", nil, domain.ForwardRequest{Method: "GET", Path: "/v1/orders"}, domain.RoutePolicy{RetrySafeRead: true}); err != nil || response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("non-refreshable provider: response=%+v err=%v", response, err)
+	}
+}
+
+func TestServiceObservesApplicationMetrics(t *testing.T) {
+	metrics := &metricsStub{}
+	limiter := &limiterStub{allowed: true}
+	service, _ := NewService(verifierStub{actor: domain.Actor{Subject: "u1", Type: "human", Scopes: []string{"orders:read:self"}}}, limiter, tokenStub{token: "svc"}, &upstreamStub{response: &domain.Response{StatusCode: http.StatusOK}})
+	service.SetMetrics(metrics)
+	request := httptestRequest(http.MethodGet, "/v1/orders", "")
+	protected := domain.RoutePolicy{Auth: domain.AuthBearer, Scopes: []string{"orders:read:self"}, LimitClass: "order-read"}
+	_, _, _ = service.Authorize(context.Background(), request, protected, "source")
+	request.Header.Set("Authorization", "Bearer token")
+	_, _, _ = service.Authorize(context.Background(), request, protected, "source")
+	service.Forward(context.Background(), "orders", nil, domain.ForwardRequest{Route: "/v1/orders"}, domain.RoutePolicy{})
+	if metrics.authFailures == 0 || metrics.upstreamRequests == 0 || metrics.upstreamDurations == 0 {
+		t.Fatalf("metrics not observed: %+v", metrics)
+	}
+
+	rateLimited := &limiterStub{allowed: false}
+	service, _ = NewService(verifierStub{actor: domain.Actor{Subject: "u1", Type: "human", Scopes: []string{"orders:read:self"}}}, rateLimited, tokenStub{token: "svc"}, &upstreamStub{})
+	service.SetMetrics(metrics)
+	_, _, _ = service.Authorize(context.Background(), request, protected, "source")
+	dependency := &limiterStub{err: errors.New("redis down")}
+	service, _ = NewService(verifierStub{}, dependency, tokenStub{token: "svc"}, &upstreamStub{})
+	service.SetMetrics(metrics)
+	_, _, _ = service.Authorize(context.Background(), httptestRequest(http.MethodPost, "/v1/auth/login", ""), domain.RoutePolicy{Auth: domain.AuthNone, LimitClass: "auth-write"}, "source")
+	if metrics.rateLimitRejections == 0 || metrics.limiterErrors == 0 {
+		t.Fatalf("limit metrics not observed: %+v", metrics)
 	}
 }
 
