@@ -12,3 +12,9 @@ Identity decisions:
 - [ADR-012 — Refresh-token rotation and session families](ADR-012-refresh-token-rotation.md)
 - [ADR-013 — Service-to-service identity](ADR-013-service-to-service-identity.md)
 - [ADR-014 — Security audit delivery](ADR-014-security-audit-delivery.md)
+
+Gateway decisions:
+
+- [ADR-015 — Gateway public edge](ADR-015-gateway-public-edge.md)
+- [ADR-016 — Gateway authentication context](ADR-016-gateway-auth-context.md)
+- [ADR-017 — Gateway limits and failure policy](ADR-017-gateway-limits-and-failure-policy.md)

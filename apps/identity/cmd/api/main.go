@@ -115,6 +115,8 @@ func run() error {
 	server.SetOpenAPIPath(cfg.OpenAPIPath)
 	server.SetTrustProxyHeaders(cfg.TrustProxyHeaders)
 	server.SetEmergencyRevocation(cfg.EmergencyRevocation)
+	server.SetMachineAudience(cfg.MachineAudience)
+	server.SetGatewayServiceSubject("svc_gateway")
 	server.SetDBStatsProvider(database.DB().Stats)
 	relay.SetPublishObserver(server.ObserveOutboxPublish)
 	go func() {

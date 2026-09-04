@@ -1,0 +1,21 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  namespace: {{ .Values.serviceMonitor.namespace }}
+  labels:
+{{ include "gateway.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+{{ include "gateway.labels" . | indent 6 }}
+  namespaceSelector:
+    matchNames: [{{ .Release.Namespace | quote }}]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+{{- end }}
+

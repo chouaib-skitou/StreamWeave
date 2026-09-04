@@ -5,3 +5,5 @@ Store approved product requirements here. A PRD must trace back to [`../brief.md
 Suggested naming: `PRD-NNN-short-title.md`.
 
 The Identity Service product requirements are defined in [`PRD-001-identity-service.md`](PRD-001-identity-service.md).
+
+The Gateway Service product requirements are defined in [`PRD-002-gateway-service.md`](PRD-002-gateway-service.md).

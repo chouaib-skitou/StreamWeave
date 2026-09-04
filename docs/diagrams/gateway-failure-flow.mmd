@@ -1,0 +1,11 @@
+flowchart TD
+  A[Incoming request] --> B{Explicit route?}
+  B -- No --> E[404/405 Problem Details]
+  B -- Yes --> C{Limiter available and allows?}
+  C -- No, exhausted --> F[429 + Retry-After]
+  C -- No, unavailable --> G[503 for protected policy]
+  C -- Yes --> D{Protected route valid token/scope?}
+  D -- No --> H[401/403 Problem Details]
+  D -- Yes --> I{Upstream within bounded timeout?}
+  I -- No --> J[503/504 Problem Details]
+  I -- Yes --> K[Response with correlation]

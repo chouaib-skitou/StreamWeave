@@ -1,0 +1,59 @@
+image:
+  repository: streamweave-gateway
+  tag: local
+  pullPolicy: IfNotPresent
+replicaCount: 2
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+environment: staging
+terminationGracePeriodSeconds: 30
+pdb:
+  minAvailable: 1
+service:
+  port: 8080
+config:
+  identityURL: http://identity:8080
+  ordersURL: http://orders:8080
+  jwksURL: http://identity:8080/.well-known/jwks.json
+  issuer: identity.local
+  humanAudience: platform-api
+  serviceClientID: gateway
+  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:cancel"
+  logLevel: info
+  metricsPath: /metrics
+  openapiPath: /contracts/openapi/gateway.openapi.yaml
+  corsOrigins: ""
+  otelEndpoint: ""
+  otelInsecure: false
+secret:
+  existingSecret: gateway-external
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 1000m, memory: 512Mi }
+networkPolicy:
+  enabled: true
+  gatewayNamespaceLabels: { kubernetes.io/metadata.name: ecommerce-gateway }
+  gatewayPodLabels: { app.kubernetes.io/name: gateway }
+  identityNamespaceLabels: { kubernetes.io/metadata.name: identity }
+  identityPodLabels: { app.kubernetes.io/name: identity }
+  ordersNamespaceLabels: { kubernetes.io/metadata.name: orders }
+  ordersPodLabels: { app.kubernetes.io/name: orders }
+  redisNamespaceLabels: { kubernetes.io/metadata.name: data }
+  redisPodLabels: { app.kubernetes.io/name: redis }
+  monitoringNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
+  monitoringPodLabels: { app.kubernetes.io/name: prometheus }
+  ingressNamespaceLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  ingressPodLabels: { app.kubernetes.io/name: ingress-nginx }
+  ingressPort: 8080
+  identityPort: 8080
+  ordersPort: 8080
+  dnsNamespaceLabels: { kubernetes.io/metadata.name: kube-system }
+  dnsPodLabels: { k8s-app: kube-dns }
+  otelNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
+  otelPodLabels: { app.kubernetes.io/name: opentelemetry-collector }
+serviceMonitor:
+  enabled: false
+  namespace: monitoring

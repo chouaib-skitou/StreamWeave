@@ -1,0 +1,63 @@
+name: Gateway CI
+
+on:
+  pull_request:
+    paths:
+      - 'apps/gateway/**'
+      - 'contracts/openapi/gateway.openapi.yaml'
+      - 'deploy/gateway/**'
+      - '.github/workflows/gateway-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Gateway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run tests with race detector and coverage
+        run: |
+          go test ./apps/gateway/... -race
+          go test ./apps/gateway/internal/application/gateway -coverprofile gateway-coverage.out
+      - name: Run security tests
+        run: go test -tags=security ./apps/gateway/tests/security/...
+      - name: Enforce Gateway coverage gate
+        shell: bash
+        run: |
+          coverage="$(go tool cover -func=gateway-coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')"
+          awk -v coverage="$coverage" 'BEGIN { if (coverage < 85.0) exit 1 }'
+          echo "Gateway coverage: ${coverage}%"
+      - name: Run vet and formatting checks
+        shell: bash
+        run: |
+          go vet ./apps/gateway/...
+          test -z "$(gofmt -l apps/gateway)"
+      - uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+      - name: Validate Kubernetes chart
+        run: |
+          helm lint deploy/gateway/helm -f deploy/gateway/staging/values.yaml
+          helm lint deploy/gateway/helm -f deploy/gateway/production/values.yaml
+      - name: Validate local Compose
+        run: docker compose --env-file monitoring/local/.env.example -f deploy/local/compose.yaml -f monitoring/local/compose.yaml config --quiet
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Validate OpenAPI contract
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet pyyaml openapi-spec-validator
+          python -c "from pathlib import Path; import yaml; from openapi_spec_validator import validate; p=Path('contracts/openapi/gateway.openapi.yaml'); validate(yaml.safe_load(p.read_text(encoding='utf-8'))); print('Gateway OpenAPI contract is valid')"
+      - name: Build service
+        run: go build -trimpath -o /tmp/gateway ./apps/gateway/cmd/api
+      - name: Build container image
+        run: docker build --file deploy/gateway/Dockerfile --tag streamweave-gateway:ci .

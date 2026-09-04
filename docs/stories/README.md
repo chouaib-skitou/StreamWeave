@@ -5,3 +5,5 @@ Store implementation-ready epics and stories here. A story must contain the user
 Suggested naming: `STORY-NNN-short-title.md`; group larger delivery slices with `EPIC-NNN-short-title.md`.
 
 Identity delivery is grouped in [`EPIC-002-identity-service.md`](EPIC-002-identity-service.md), with stories `STORY-006` through `STORY-013`.
+
+Gateway documentation and implementation readiness are grouped in [`EPIC-003-gateway-service.md`](EPIC-003-gateway-service.md), with stories `STORY-014` through `STORY-018`.

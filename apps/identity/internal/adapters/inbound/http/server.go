@@ -43,6 +43,8 @@ type Server struct {
 	mux                 *http.ServeMux
 	demoRegistration    bool
 	humanAudience       string
+	machineAudience     string
+	gatewaySubject      string
 	mailbox             identityapp.Mailbox
 	testMailer          bool
 	trustProxyHeaders   bool
@@ -116,8 +118,10 @@ func (s *Server) ObserveOutboxPublish(outcome string) {
 	s.outboxPublished.WithLabelValues(outcome).Inc()
 }
 
-func (s *Server) SetTrustProxyHeaders(enabled bool)   { s.trustProxyHeaders = enabled }
-func (s *Server) SetEmergencyRevocation(enabled bool) { s.emergencyRevocation = enabled }
+func (s *Server) SetTrustProxyHeaders(enabled bool)       { s.trustProxyHeaders = enabled }
+func (s *Server) SetEmergencyRevocation(enabled bool)     { s.emergencyRevocation = enabled }
+func (s *Server) SetMachineAudience(audience string)      { s.machineAudience = audience }
+func (s *Server) SetGatewayServiceSubject(subject string) { s.gatewaySubject = subject }
 
 func (s *Server) requestSource(request *http.Request) string {
 	return requestSource(request, s.trustProxyHeaders)
