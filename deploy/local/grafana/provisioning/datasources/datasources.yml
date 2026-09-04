@@ -5,23 +5,21 @@ datasources:
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://identity-prometheus:9090
+    url: http://prometheus:9090
     isDefault: true
     jsonData:
       httpMethod: POST
       manageAlerts: true
       alertmanagerUid: alertmanager
-
   - name: Alertmanager
     uid: alertmanager
     type: alertmanager
     access: proxy
-    url: http://identity-alertmanager:9093
+    url: http://alertmanager:9093
     jsonData:
       implementation: prometheus
-
   - name: Tempo
     uid: tempo
     type: tempo
     access: proxy
-    url: http://identity-tempo:3200
+    url: http://tempo:3200

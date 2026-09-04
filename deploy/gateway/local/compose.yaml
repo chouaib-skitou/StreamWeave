@@ -26,33 +26,3 @@ services:
     read_only: true
     user: 'gateway'
     healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:8080/health/ready], interval: 10s, timeout: 3s, retries: 10 }
-
-  gateway-prometheus:
-    image: prom/prometheus:v3.5.0
-    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus]
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/rules.yml:/etc/prometheus/rules/gateway.yml:ro
-      - gateway-local-prometheus-data:/prometheus
-    depends_on:
-      gateway: { condition: service_healthy }
-    ports: ['9091:9090']
-
-  gateway-grafana:
-    image: grafana/grafana:12.1.1
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GATEWAY_GRAFANA_ADMIN_USER:?set GATEWAY_GRAFANA_ADMIN_USER in .env}
-      GF_SECURITY_ADMIN_PASSWORD: ${GATEWAY_GRAFANA_ADMIN_PASSWORD:?set GATEWAY_GRAFANA_ADMIN_PASSWORD in .env}
-      GF_USERS_ALLOW_SIGN_UP: 'false'
-      GF_AUTH_ANONYMOUS_ENABLED: 'false'
-    volumes:
-      - gateway-local-grafana-data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      gateway-prometheus: { condition: service_started }
-    ports: ['3002:3000']
-
-volumes:
-  gateway-local-prometheus-data:
-  gateway-local-grafana-data:

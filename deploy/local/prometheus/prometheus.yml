@@ -8,13 +8,18 @@ rule_files:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: [identity-alertmanager:9093]
+        - targets: [alertmanager:9093]
 
 scrape_configs:
   - job_name: identity
     metrics_path: /metrics
     static_configs:
       - targets: [identity:8080]
+
+  - job_name: gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: [gateway:8080]
 
   - job_name: prometheus
     static_configs:

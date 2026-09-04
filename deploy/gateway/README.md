@@ -4,20 +4,26 @@ The Gateway is the public HTTP edge for StreamWeave. It listens on container por
 
 ## Local
 
-Start Identity first, then copy `local/.env.example` to `local/.env`. Set a short-lived development `GATEWAY_SERVICE_TOKEN` issued for the `svc_gateway` principal and run:
+Start the complete local platform from the repository root. Copy
+`deploy/local/.env.example` to `deploy/local/.env`, set a short-lived development
+`GATEWAY_SERVICE_TOKEN` issued for the `svc_gateway` principal, and run:
 
 ```bash
-make gateway-compose-up
+make local-up
 ```
 
-The local observability endpoints are:
+The local platform endpoints are:
 
 - Gateway: `http://localhost:8081`
 - Swagger UI: `http://localhost:8081/v1/docs`
-- Prometheus: `http://localhost:9091`
-- Grafana: `http://localhost:3002`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+- Alertmanager: `http://localhost:9093`
+- Tempo: `http://localhost:3200/ready`
+- MailHog: `http://localhost:8025`
 
-Mail delivery remains an Identity concern and is provided by Identity's MailHog stack.
+Prometheus, Alertmanager, Grafana, Tempo, the OpenTelemetry Collector, and
+MailHog are shared once by the platform rather than deployed per service.
 
 ## Staging and production
 

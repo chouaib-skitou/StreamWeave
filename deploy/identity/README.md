@@ -14,5 +14,7 @@ root directory contains only shared deployment assets and the Helm chart. SMTP c
 `.env` files, CI/CD secret stores, or Kubernetes Secrets; they are never
 committed.
 
-The canonical local commands are documented in `local/README.md` and exposed
-through `make identity-compose-up` and `make identity-compose-down`.
+The canonical local platform commands are documented in `../local/README.md` and
+exposed through `make local-up` and `make local-down`. The service-only commands
+`make identity-compose-up` and `make identity-compose-down` remain available
+when shared observability is not needed.

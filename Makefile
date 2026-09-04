@@ -1,4 +1,4 @@
-.PHONY: identity-generate identity-lint identity-test identity-test-integration identity-test-security identity-build identity-image identity-local-env identity-compose-up identity-compose-down identity-kind-deploy identity-smoke gateway-lint gateway-test gateway-build gateway-image gateway-local-env gateway-compose-up gateway-compose-down gateway-kind-deploy
+.PHONY: identity-generate identity-lint identity-test identity-test-integration identity-test-security identity-build identity-image identity-local-env identity-compose-up identity-compose-down identity-kind-deploy identity-smoke gateway-lint gateway-test gateway-build gateway-image gateway-local-env gateway-compose-up gateway-compose-down gateway-kind-deploy local-env local-config local-up local-down local-logs
 
 identity-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
@@ -65,3 +65,18 @@ gateway-compose-down: gateway-local-env
 
 gateway-kind-deploy:
 	helm upgrade --install gateway deploy/gateway/helm --namespace ecommerce-gateway --create-namespace
+
+local-env:
+	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'deploy/local/.env')) { Copy-Item -LiteralPath 'deploy/local/.env.example' -Destination 'deploy/local/.env'; Write-Output 'Created deploy/local/.env from .env.example (local-only, ignored by Git).' }"
+
+local-config: local-env
+	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml config --quiet
+
+local-up: local-env
+	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml up -d --build --remove-orphans
+
+local-down: local-env
+	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml down
+
+local-logs: local-env
+	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml logs -f

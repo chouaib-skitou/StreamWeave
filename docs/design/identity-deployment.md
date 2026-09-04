@@ -99,7 +99,7 @@ The dashboard covers HTTP outcomes by route, authentication outcomes, refresh ou
 
 ### Traces
 
-HTTP spans connect to PostgreSQL transactions, Kafka outbox publication, and SMTP delivery. Sensitive request fields, credentials, tokens, email bodies, and IP addresses are excluded from span attributes. Production and staging use TLS-capable OTLP export by default; local Compose explicitly enables `IDENTITY_OTEL_INSECURE=true`. If the OTLP collector is unavailable, the SDK remains non-blocking and business responses continue.
+HTTP spans connect to PostgreSQL transactions, Kafka outbox publication, and SMTP delivery. Sensitive request fields, credentials, tokens, email bodies, and IP addresses are excluded from span attributes. Production and staging use TLS-capable OTLP export by default; the shared local Compose profile explicitly enables `IDENTITY_OTEL_INSECURE=true`. If the OTLP collector is unavailable, the SDK remains non-blocking and business responses continue.
 
 ### Alerts
 
