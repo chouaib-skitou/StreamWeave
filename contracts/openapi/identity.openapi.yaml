@@ -3,11 +3,7 @@ info:
   title: StreamWeave Identity API
   version: 1.0.0
   description: Authentication, sessions, roles, service principals, and security operations for the platform.
-# Use the origin serving this contract. This keeps Swagger UI usable in local,
-# staging, and production environments without embedding an environment URL.
 servers:
-  - url: /
-    description: Current Identity API origin
   - url: http://localhost:8080
     description: Local development
 tags:
