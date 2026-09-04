@@ -1,0 +1,14 @@
+flowchart LR
+  Client[Web or service client] --> Edge[Ingress / load balancer]
+  Edge --> Gateway[StreamWeave Gateway]
+  Gateway -->|JWT verification / JWKS| Identity[Identity Service]
+  Gateway -->|authenticated service context| Orders[Orders Service]
+  Gateway --> Redis[(Redis rate limits)]
+  Gateway --> Obs[OTel / Prometheus / logs]
+  Identity --> IdentityDB[(Identity DB)]
+  Orders --> OrdersDB[(Orders DB)]
+
+  classDef boundary fill:#132238,stroke:#65d6ff,color:#fff;
+  classDef dependency fill:#243b2f,stroke:#9be37a,color:#fff;
+  class Gateway,Edge boundary;
+  class Identity,Orders,Redis,Obs,IdentityDB,OrdersDB dependency;

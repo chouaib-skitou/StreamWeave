@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant C as Client
+  participant G as Gateway
+  participant R as Redis
+  participant I as Identity JWKS
+  participant O as Orders
+
+  C->>G: HTTP request + optional bearer
+  G->>G: request ID, trace, route and body policy
+  G->>R: evaluate route limit
+  R-->>G: allow or reject
+  G->>I: refresh JWKS only on unknown kid
+  G->>G: verify JWT and required coarse scope
+  G->>O: service credential + safe actor context
+  O-->>G: domain response / Problem Details
+  G-->>C: normalized response + X-Request-ID
