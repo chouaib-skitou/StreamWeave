@@ -67,16 +67,16 @@ gateway-kind-deploy:
 	helm upgrade --install gateway deploy/gateway/helm --namespace ecommerce-gateway --create-namespace
 
 local-env:
-	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'deploy/local/.env')) { Copy-Item -LiteralPath 'deploy/local/.env.example' -Destination 'deploy/local/.env'; Write-Output 'Created deploy/local/.env from .env.example (local-only, ignored by Git).' }"
+	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'monitoring/local/.env')) { Copy-Item -LiteralPath 'monitoring/local/.env.example' -Destination 'monitoring/local/.env'; Write-Output 'Created monitoring/local/.env from .env.example (local-only, ignored by Git).' }"
 
 local-config: local-env
-	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml config --quiet
+	docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml config --quiet
 
 local-up: local-env
-	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml up -d --build --remove-orphans
+	docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml up -d --build --remove-orphans
 
 local-down: local-env
-	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml down
+	docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml down
 
 local-logs: local-env
-	docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml logs -f
+	docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml logs -f

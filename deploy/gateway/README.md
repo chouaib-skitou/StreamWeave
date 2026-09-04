@@ -5,7 +5,7 @@ The Gateway is the public HTTP edge for StreamWeave. It listens on container por
 ## Local
 
 Start the complete local platform from the repository root. Copy
-`deploy/local/.env.example` to `deploy/local/.env`, set a short-lived development
+`monitoring/local/.env.example` to `monitoring/local/.env`, set a short-lived development
 `GATEWAY_SERVICE_TOKEN` issued for the `svc_gateway` principal, and run:
 
 ```bash

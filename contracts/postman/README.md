@@ -8,8 +8,8 @@ Import both files in this directory:
 Start the canonical shared local profile from the repository root:
 
 ```powershell
-Copy-Item deploy/local/.env.example deploy/local/.env
-docker compose --env-file deploy/local/.env -f deploy/local/compose.yaml up -d --build
+Copy-Item monitoring/local/.env.example monitoring/local/.env
+docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml up -d --build
 ```
 
 Run the requests in this order for the complete human-user flow:

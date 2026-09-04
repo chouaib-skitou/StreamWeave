@@ -2,8 +2,8 @@
 
 This service profile runs Identity with PostgreSQL, Redis, Kafka, and MailHog.
 The complete local platform stack, including one shared OpenTelemetry Collector,
-Tempo, Prometheus, Alertmanager, and Grafana for every service, is started from
-`deploy/local/compose.yaml`.
+Tempo, Prometheus, Alertmanager, and Grafana for every service, is composed from
+`deploy/local/compose.yaml` and `monitoring/local/compose.yaml`.
 
 ```bash
 # Recommended from the repository root: start both services and shared tooling.
@@ -27,7 +27,7 @@ passwords before sharing access to the local environment.
 - MailHog SMTP: `localhost:1025` (container address: `mailhog:1025`)
 
 The shared observability endpoints, credentials, dashboards, and alert rules
-are documented in [`deploy/local/README.md`](../../local/README.md).
+are documented in [`monitoring/local/README.md`](../../../monitoring/local/README.md).
 
 Identity currently emits structured logs to stdout, so inspect them with:
 

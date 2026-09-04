@@ -8,6 +8,8 @@ info:
 servers:
   - url: /
     description: Current Identity API origin
+  - url: http://localhost:8080
+    description: Local development
 tags:
   - name: Authentication
   - name: Sessions

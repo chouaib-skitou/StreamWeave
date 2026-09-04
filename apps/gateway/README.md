@@ -23,6 +23,6 @@ The implementation follows the accepted documentation gate, the repository's Cle
 
 ## Local runtime
 
-The canonical local stack maps Gateway to `http://localhost:8081` and Identity to `http://localhost:8080`. Copy `deploy/local/.env.example` to `deploy/local/.env`, replace the development service token, and run `make local-up`. The Gateway container listens on `:8080`; the host mapping is deliberately `8081` to avoid Identity's `8080` mapping. `make gateway-compose-up` remains available for a Gateway-only profile without shared observability.
+The canonical local stack maps Gateway to `http://localhost:8081` and Identity to `http://localhost:8080`. Copy `monitoring/local/.env.example` to `monitoring/local/.env`, replace the development service token, and run `make local-up`. The Gateway container listens on `:8080`; the host mapping is deliberately `8081` to avoid Identity's `8080` mapping. `make gateway-compose-up` remains available for a Gateway-only profile without shared observability.
 
 Use `make gateway-test` for race-enabled tests and the 85% application coverage gate, `make gateway-lint` for vet/format checks, and `make gateway-kind-deploy` for Helm installation. Staging and production use an external Secret containing `GATEWAY_SERVICE_CLIENT_SECRET`; static tokens are rejected outside development.
