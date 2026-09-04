@@ -5,11 +5,11 @@ Import both files in this directory:
 1. `identity-service.postman_collection.json`
 2. `identity.local.postman_environment.json`
 
-Start the local profile from the repository root:
+Start the canonical shared local profile from the repository root:
 
 ```powershell
-Copy-Item deploy/identity/local/.env.example deploy/identity/local/.env
-docker compose --env-file deploy/identity/local/.env -f deploy/identity/local/compose.yaml up --build
+Copy-Item monitoring/local/.env.example monitoring/local/.env
+docker compose --env-file monitoring/local/.env -f deploy/local/compose.yaml -f monitoring/local/compose.yaml up -d --build
 ```
 
 Run the requests in this order for the complete human-user flow:

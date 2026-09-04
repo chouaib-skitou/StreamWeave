@@ -61,43 +61,122 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			audience = "platform-api"
 		}
 		claims, err := s.signer.Verify(raw, audience)
-		if err != nil || claims.TokenKind != "human" {
+		if err == nil && claims.TokenKind == "human" {
+			if err := s.requireActiveHumanSession(w, r, claims); err != nil {
+				return
+			}
+			s.jwtVerification.WithLabelValues("success").Inc()
+			next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
+			return
+		}
+		machineAudience := s.machineAudience
+		if machineAudience == "" {
+			machineAudience = "platform-internal"
+		}
+		machineClaims, machineErr := s.signer.Verify(raw, machineAudience)
+		if machineErr != nil || machineClaims.TokenKind != "service" || machineClaims.Subject != s.gatewayServiceSubject() {
 			s.jwtVerification.WithLabelValues("invalid").Inc()
 			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
 			return
 		}
-		if s.emergencyRevocation && s.revocations != nil {
-			revoked, checkErr := s.revocations.IsRevoked(r.Context(), claims.ID)
-			if checkErr != nil {
-				s.jwtVerification.WithLabelValues("revocation_check_error").Inc()
-				problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
-				return
-			}
-			if revoked {
-				s.jwtVerification.WithLabelValues("revoked").Inc()
-				problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
-				return
-			}
-		}
-		sessionID, err := uuid.Parse(claims.SessionID)
-		if err != nil || s.identity == nil {
-			s.jwtVerification.WithLabelValues("invalid_session").Inc()
+		actorClaims, actorErr := s.gatewayActorClaims(r, machineClaims)
+		if actorErr != nil {
+			s.jwtVerification.WithLabelValues("invalid_context").Inc()
 			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
 			return
 		}
-		active, checkErr := s.identity.IsSessionActive(r.Context(), sessionID)
-		if checkErr != nil || !active {
-			if checkErr != nil {
-				s.jwtVerification.WithLabelValues("session_check_error").Inc()
-			} else {
-				s.jwtVerification.WithLabelValues("inactive_session").Inc()
-			}
+		if s.identity == nil {
+			problem(w, http.StatusServiceUnavailable, "service_unavailable", "Required dependency unavailable")
+			return
+		}
+		active, activeErr := s.identity.IsSessionActive(r.Context(), uuid.MustParse(actorClaims.SessionID))
+		if activeErr != nil || !active {
+			s.jwtVerification.WithLabelValues("inactive_session").Inc()
 			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
 			return
 		}
-		s.jwtVerification.WithLabelValues("success").Inc()
-		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, claims)))
+		s.jwtVerification.WithLabelValues("service_context").Inc()
+		next(w, r.WithContext(context.WithValue(r.Context(), claimsContextKey{}, actorClaims)))
 	})
+}
+
+func (s *Server) requireActiveHumanSession(w http.ResponseWriter, r *http.Request, claims *identitycrypto.Claims) error {
+	if s.emergencyRevocation && s.revocations != nil {
+		revoked, checkErr := s.revocations.IsRevoked(r.Context(), claims.ID)
+		if checkErr != nil || revoked {
+			s.jwtVerification.WithLabelValues("revoked").Inc()
+			problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
+			return errors.New("revoked session")
+		}
+	}
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil || s.identity == nil {
+		s.jwtVerification.WithLabelValues("invalid_session").Inc()
+		problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
+		return errors.New("invalid session")
+	}
+	active, checkErr := s.identity.IsSessionActive(r.Context(), sessionID)
+	if checkErr != nil || !active {
+		s.jwtVerification.WithLabelValues("inactive_session").Inc()
+		problem(w, http.StatusUnauthorized, "unauthorized", "Authentication failed")
+		return errors.New("inactive session")
+	}
+	return nil
+}
+
+func (s *Server) gatewayServiceSubject() string {
+	if strings.TrimSpace(s.gatewaySubject) != "" {
+		return s.gatewaySubject
+	}
+	return "svc_gateway"
+}
+
+func (s *Server) gatewayActorClaims(r *http.Request, machine *identitycrypto.Claims) (*identitycrypto.Claims, error) {
+	actorID := strings.TrimSpace(r.Header.Get("X-StreamWeave-Actor-ID"))
+	if !strings.HasPrefix(actorID, "usr_") || len(actorID) < 8 {
+		return nil, errors.New("invalid actor")
+	}
+	if _, err := parseUserRef(actorID); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(r.Header.Get("X-StreamWeave-Actor-Type")) != "human" {
+		return nil, errors.New("invalid actor type")
+	}
+	scopes := strings.Fields(r.Header.Get("X-StreamWeave-Scopes"))
+	if len(scopes) > 64 {
+		return nil, errors.New("too many actor scopes")
+	}
+	allowedScopes := make(map[string]struct{}, len(machine.Scopes))
+	for _, scope := range machine.Scopes {
+		allowedScopes[scope] = struct{}{}
+	}
+	for _, scope := range scopes {
+		if len(scope) > 128 || !validScope(scope) {
+			return nil, errors.New("invalid actor scope")
+		}
+		if _, allowed := allowedScopes[scope]; !allowed {
+			return nil, errors.New("actor scope is not granted")
+		}
+	}
+	sessionID, err := uuid.Parse(strings.TrimSpace(r.Header.Get("X-StreamWeave-Actor-Session-ID")))
+	if err != nil {
+		return nil, errors.New("invalid actor session")
+	}
+	copyClaims := *machine
+	copyClaims.Subject = actorID
+	copyClaims.SessionID = sessionID.String()
+	copyClaims.TokenKind = "service-context"
+	copyClaims.Scopes = scopes
+	return &copyClaims, nil
+}
+
+func validScope(scope string) bool {
+	for _, r := range scope {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != ':' && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return scope != ""
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {

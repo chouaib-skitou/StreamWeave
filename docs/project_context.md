@@ -55,7 +55,7 @@ The project uses synthetic data in automated tests. Local Identity development u
 
 ## Repository state
 
-The repository contains the approved Identity Service implementation, database migrations, deployment manifests, quality CI, tests, email templates, environment profiles, and API/event contracts. Further services are added through reviewed feature branches.
+The repository contains the approved Identity and Gateway implementations, deployment manifests, quality CI, tests, email templates, environment profiles, observability stack, and API/event contracts. Further services are added through reviewed feature branches. Orders remains the next business-service implementation slice.
 
 The private BMAD installation, local agent instructions, original blueprint, BMAD guide, and generated BMAD output remain local-only and are excluded by `.gitignore`.
 
@@ -100,7 +100,7 @@ For every significant design choice, be able to explain:
 ## Current milestones
 
 M0: context, product requirements, architecture, ADRs, and contracts plan.
-M1: synchronous skeleton and contracts.
+M1: Identity and Gateway implementation baselines.
 M2: Kafka + outbox.
 M3: inventory/payment saga.
 M4: compensation and DLQ.

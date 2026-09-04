@@ -1,0 +1,48 @@
+image:
+  repository: ghcr.io/chouaib-skitou/streamweave-gateway
+  tag: v0.3.1
+  pullPolicy: IfNotPresent
+replicaCount: 3
+environment: production
+service:
+  port: 8080
+config:
+  identityURL: https://identity.internal.example.com
+  ordersURL: https://orders.internal.example.com
+  jwksURL: https://identity.internal.example.com/.well-known/jwks.json
+  issuer: identity.streamweave.example
+  humanAudience: platform-api
+  serviceClientID: gateway
+  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:cancel:self,orders:cancel"
+  corsOrigins: "https://app.streamweave.example"
+  otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
+  otelInsecure: false
+secret:
+  existingSecret: gateway-external
+resources:
+  requests: { cpu: 200m, memory: 256Mi }
+  limits: { cpu: 1500m, memory: 768Mi }
+networkPolicy:
+  enabled: true
+  gatewayNamespaceLabels: { kubernetes.io/metadata.name: ecommerce-gateway }
+  gatewayPodLabels: { app.kubernetes.io/name: gateway }
+  identityNamespaceLabels: { kubernetes.io/metadata.name: identity }
+  identityPodLabels: { app.kubernetes.io/name: identity }
+  ordersNamespaceLabels: { kubernetes.io/metadata.name: orders }
+  ordersPodLabels: { app.kubernetes.io/name: orders }
+  redisNamespaceLabels: { kubernetes.io/metadata.name: data }
+  redisPodLabels: { app.kubernetes.io/name: redis }
+  monitoringNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
+  monitoringPodLabels: { app.kubernetes.io/name: prometheus }
+  ingressNamespaceLabels: { kubernetes.io/metadata.name: ingress-nginx }
+  ingressPodLabels: { app.kubernetes.io/name: ingress-nginx }
+  ingressPort: 8080
+  identityPort: 443
+  ordersPort: 443
+  dnsNamespaceLabels: { kubernetes.io/metadata.name: kube-system }
+  dnsPodLabels: { k8s-app: kube-dns }
+  otelNamespaceLabels: { kubernetes.io/metadata.name: monitoring }
+  otelPodLabels: { app.kubernetes.io/name: opentelemetry-collector }
+serviceMonitor:
+  enabled: true
+  namespace: monitoring

@@ -1,0 +1,114 @@
+groups:
+  - name: streamweave-availability
+    rules:
+      - alert: IdentityServiceDown
+        expr: up{job="identity"} == 0
+        for: 30s
+        labels: { severity: critical, service: identity }
+        annotations:
+          summary: Identity service is unavailable
+          description: Prometheus cannot scrape the Identity metrics endpoint.
+      - alert: GatewayServiceDown
+        expr: up{job="gateway"} == 0
+        for: 30s
+        labels: { severity: critical, service: gateway }
+        annotations:
+          summary: Gateway service is unavailable
+          description: Prometheus cannot scrape the Gateway metrics endpoint.
+
+  - name: streamweave-identity
+    rules:
+      - alert: IdentityHttpServerErrors
+        expr: increase(identity_http_requests_total{status="Internal Server Error"}[5m]) > 0
+        for: 1m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity returned HTTP 500 responses
+          description: Identity returned one or more internal server errors during the last five minutes.
+      - alert: IdentityReadinessFailures
+        expr: increase(identity_http_requests_total{status="Service Unavailable"}[5m]) > 0
+        for: 1m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity readiness or dependency checks failed
+          description: Identity returned service-unavailable responses during the last five minutes.
+      - alert: IdentityRateLimitSpike
+        expr: sum(rate(identity_rate_limited_total[5m])) > 1
+        for: 5m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity is rate limiting clients
+          description: Rate-limited requests exceeded one per second for five minutes.
+      - alert: IdentityRefreshTokenReuse
+        expr: increase(identity_refresh_reuse_total[5m]) > 0
+        for: 1m
+        labels: { severity: critical, service: identity }
+        annotations:
+          summary: Identity detected refresh-token reuse
+          description: A refresh-token replay was detected and its session family was revoked.
+      - alert: IdentityOutboxBacklog
+        expr: identity_outbox_backlog > 100
+        for: 10m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity outbox backlog is growing
+          description: More than 100 audit events are waiting for publication.
+      - alert: IdentityOutboxPublicationFailures
+        expr: sum(rate(identity_outbox_publish_total{outcome="error"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity outbox publication is failing
+          description: Kafka publication or outbox acknowledgement has failed continuously for five minutes.
+      - alert: IdentityDatabasePoolPressure
+        expr: identity_db_pool_wait_count > 0
+        for: 5m
+        labels: { severity: warning, service: identity }
+        annotations:
+          summary: Identity database pool is saturated
+          description: Requests are waiting for a PostgreSQL connection.
+
+  - name: streamweave-gateway
+    rules:
+      - alert: GatewayHigh5xxRate
+        expr: sum(rate(gateway_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(gateway_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels: { severity: warning, service: gateway }
+        annotations:
+          summary: Gateway 5xx rate is above 5 percent
+          description: The Gateway is returning an elevated rate of server errors.
+      - alert: GatewayHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(gateway_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning, service: gateway }
+        annotations:
+          summary: Gateway p95 latency is above one second
+          description: Gateway request latency is elevated across one or more route classes.
+      - alert: GatewayRateLimitSpike
+        expr: sum(rate(gateway_rate_limit_rejections_total[5m])) > 1
+        for: 5m
+        labels: { severity: warning, service: gateway }
+        annotations:
+          summary: Gateway rate-limit rejections are elevated
+          description: Rate-limit rejection volume may indicate abuse or capacity pressure.
+      - alert: GatewayJWKSRefreshFailures
+        expr: increase(gateway_jwks_refresh_total{outcome="error"}[5m]) > 0
+        for: 1m
+        labels: { severity: critical, service: gateway }
+        annotations:
+          summary: Gateway JWKS refresh failed
+          description: Gateway could not refresh Identity signing keys; protected traffic may fail closed.
+      - alert: GatewayLimiterErrors
+        expr: increase(gateway_rate_limiter_errors_total[5m]) > 0
+        for: 1m
+        labels: { severity: critical, service: gateway }
+        annotations:
+          summary: Gateway rate limiter errors detected
+          description: Gateway rate-limit enforcement is unavailable for one or more policy classes.
+      - alert: GatewayUpstreamTimeouts
+        expr: sum(rate(gateway_upstream_requests_total{outcome=~"error|http_504"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning, service: gateway }
+        annotations:
+          summary: Gateway upstream failures are sustained
+          description: One or more logical upstream dependencies are timing out or unavailable.
