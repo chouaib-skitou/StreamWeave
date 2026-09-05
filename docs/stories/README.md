@@ -7,3 +7,5 @@ Suggested naming: `STORY-NNN-short-title.md`; group larger delivery slices with 
 Identity delivery is grouped in [`EPIC-002-identity-service.md`](EPIC-002-identity-service.md), with stories `STORY-006` through `STORY-013`.
 
 Gateway documentation and implementation readiness are grouped in [`EPIC-003-gateway-service.md`](EPIC-003-gateway-service.md), with stories `STORY-014` through `STORY-018`.
+
+Orders documentation and implementation readiness are grouped in [`EPIC-004-orders-service.md`](EPIC-004-orders-service.md), with stories `STORY-019` through `STORY-029`.

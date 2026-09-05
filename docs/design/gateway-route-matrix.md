@@ -30,7 +30,7 @@ This matrix is the reviewable source for Gateway route registration. The OpenAPI
 - `X-Request-ID` is accepted only within the documented format and is generated otherwise. The response always includes it.
 - `traceparent` is propagated according to W3C rules. `Authorization` is never logged or copied to Kafka.
 - `POST /v1/orders` requires `Idempotency-Key`; the Gateway validates size/format and forwards it unchanged. Orders owns uniqueness and replay semantics.
-- `POST /v1/orders` also carries the blueprint's `customer_id`; Gateway treats it as untrusted input and Orders verifies actor/customer ownership. Client input never supplies the authoritative item price.
+- `POST /v1/orders` carries the Identity subject format (`usr_...`) as `customer_id`; Gateway treats it as untrusted input and Orders verifies actor/customer ownership. Client input never supplies the authoritative item price.
 - Request bodies have bounded size; unsupported content types are rejected before proxying.
 - All non-success responses use RFC 9457 Problem Details with a stable `type`, safe `title`/`detail`, `status`, `instance`, and `request_id`.
 

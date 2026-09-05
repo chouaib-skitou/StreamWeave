@@ -6,8 +6,9 @@ StreamWeave is a portfolio-grade event-driven commerce platform in Go. It demons
 
 The platform is being built incrementally. Identity and Gateway are implemented
 with their contracts, local observability stack, Docker image workflows, Helm
-charts, and validation evidence. Orders and the remaining business services are
-still planned.
+charts, and validation evidence. Orders now has a documentation-complete
+package; its service code and the remaining business services follow through
+reviewed feature branches.
 
 ## Documentation map
 
@@ -25,6 +26,10 @@ still planned.
 - [Gateway Service PRD](docs/prd/PRD-002-gateway-service.md)
 - [Gateway Service architecture](docs/architecture/gateway-service.md)
 - [Gateway Service API contract](contracts/openapi/gateway.openapi.yaml)
+- [Orders Service PRD](docs/prd/PRD-003-orders-service.md)
+- [Orders Service architecture](docs/architecture/orders-service.md)
+- [Orders Service API contract](contracts/openapi/orders.openapi.yaml)
+- [Orders Service documentation gate](docs/bmad/implementation-artifacts/spec-orders-service-documentation.md)
 
 Private BMAD tooling, agent instructions, planning scratch work, and the original blueprint stay local and are excluded by `.gitignore`.
 

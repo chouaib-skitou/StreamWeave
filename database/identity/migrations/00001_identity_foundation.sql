@@ -135,7 +135,7 @@ INSERT INTO permissions (id, name, description, created_at)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'orders:read:self', 'Read owned orders', now()),
     ('00000000-0000-0000-0000-000000000002', 'orders:read:any', 'Read any order', now()),
-    ('00000000-0000-0000-0000-000000000003', 'orders:cancel', 'Cancel permitted orders', now()),
+    ('00000000-0000-0000-0000-000000000003', 'orders:cancel', 'Legacy order cancellation permission; retained for migration compatibility', now()),
     ('00000000-0000-0000-0000-000000000004', 'payments:refund', 'Refund payments', now()),
     ('00000000-0000-0000-0000-000000000005', 'identity:users:read', 'Read identity users', now()),
     ('00000000-0000-0000-0000-000000000006', 'identity:roles:manage', 'Manage identity roles', now())

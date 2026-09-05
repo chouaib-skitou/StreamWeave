@@ -57,7 +57,7 @@ func Load(source Source) (Config, error) {
 		RedisURL:            value(source, "GATEWAY_REDIS_URL", "redis://localhost:6379/1"),
 		ServiceClientID:     value(source, "GATEWAY_SERVICE_CLIENT_ID", ""),
 		ServiceClientSecret: value(source, "GATEWAY_SERVICE_CLIENT_SECRET", ""),
-		ServiceScopes:       csv(source, "GATEWAY_SERVICE_SCOPES", []string{"orders:read:self", "orders:read:any", "orders:write:self", "orders:cancel", "identity:sessions:read", "identity:sessions:write"}),
+		ServiceScopes:       csv(source, "GATEWAY_SERVICE_SCOPES", []string{"orders:read:self", "orders:read:any", "orders:write:self", "orders:write:any", "orders:cancel:self", "orders:cancel:any", "identity:sessions:read", "identity:sessions:write"}),
 		StaticServiceToken:  value(source, "GATEWAY_SERVICE_TOKEN", ""),
 		TrustProxyHeaders:   boolean(source, "GATEWAY_TRUST_PROXY_HEADERS", false),
 		MaxResponseBytes:    int64(integer(source, "GATEWAY_MAX_RESPONSE_BYTES", 4<<20)),
