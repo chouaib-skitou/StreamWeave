@@ -22,6 +22,7 @@ kubeconfig*
 /coverage
 /coverage.out
 /identity
+/orders
 /foo
 /foo-bar
 /*-coverage.out
