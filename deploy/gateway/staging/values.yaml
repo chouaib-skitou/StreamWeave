@@ -13,7 +13,7 @@ config:
   issuer: identity.streamweave.example
   humanAudience: platform-api
   serviceClientID: gateway
-  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:cancel"
+  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:write:any,orders:cancel:self,orders:cancel:any"
   corsOrigins: "https://app.staging.streamweave.example"
   otelEndpoint: otel-collector.monitoring.svc.cluster.local:4317
   otelInsecure: false

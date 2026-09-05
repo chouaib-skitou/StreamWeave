@@ -1,0 +1,12 @@
+flowchart LR
+  Client[Customer or operator] --> Gateway[Gateway :8081]
+  Gateway --> Orders[Orders :8082]
+  Orders --> OrdersDB[(orders_db)]
+  Orders --> Kafka[(Kafka)]
+  Orders --> Redis[(Redis disposable limits)]
+  Kafka --> Inventory[Inventory]
+  Kafka --> Payments[Payments]
+  Kafka --> Fulfillment[Fulfillment]
+  Kafka --> Notifications[Notifications]
+  Orders --> Obs[Shared monitoring]
+  Gateway --> Identity[Identity JWKS/service token]

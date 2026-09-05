@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.streamweave.dev/commerce/fulfillment/created.v1.json",
+  "title": "ShipmentCreated v1",
+  "allOf": [ { "$ref": "https://schemas.streamweave.dev/commerce/event-envelope.v1.json" }, { "properties": { "event_type": { "const": "commerce.fulfillment.created.v1" }, "aggregate_type": { "const": "fulfillment" }, "producer": { "const": "fulfillment" }, "data": { "type": "object", "required": ["order_id", "shipment_id"], "properties": { "order_id": { "type": "string", "pattern": "^ord_[A-Za-z0-9]+$" }, "shipment_id": { "type": "string", "pattern": "^shp_[A-Za-z0-9]+$" } }, "additionalProperties": false } } } ]
+}

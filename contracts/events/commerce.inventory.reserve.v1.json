@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.streamweave.dev/commerce/inventory/commands/reserve.v1.json",
+  "title": "ReserveInventory command v1",
+  "allOf": [ { "$ref": "https://schemas.streamweave.dev/commerce/command-envelope.v1.json" }, { "properties": { "command_type": { "const": "commerce.inventory.reserve.v1" }, "aggregate_type": { "const": "order" }, "data": { "type": "object", "required": ["order_id", "customer_id", "currency", "items"], "properties": { "order_id": { "type": "string", "pattern": "^ord_[A-Za-z0-9]+$" }, "customer_id": { "type": "string", "pattern": "^usr_[A-Za-z0-9]+$" }, "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }, "items": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["product_id", "quantity"], "properties": { "product_id": { "type": "string", "pattern": "^prd_[A-Za-z0-9]+$" }, "quantity": { "type": "integer", "minimum": 1 } }, "additionalProperties": false } } }, "additionalProperties": false } } } ]
+}

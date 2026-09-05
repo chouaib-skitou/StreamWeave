@@ -55,7 +55,7 @@ The project uses synthetic data in automated tests. Local Identity development u
 
 ## Repository state
 
-The repository contains the approved Identity and Gateway implementations, deployment manifests, quality CI, tests, email templates, environment profiles, observability stack, and API/event contracts. Further services are added through reviewed feature branches. Orders remains the next business-service implementation slice.
+The repository contains the approved Identity and Gateway implementations, deployment manifests, quality CI, tests, email templates, environment profiles, observability stack, and API/event contracts. Orders documentation and foundation implementation contracts are complete on the Orders documentation branch; application code follows through the reviewed feature flow. Dependency integration remains gated by the explicit Inventory, Payments, and Fulfillment contracts.
 
 The private BMAD installation, local agent instructions, original blueprint, BMAD guide, and generated BMAD output remain local-only and are excluded by `.gitignore`.
 
@@ -101,10 +101,10 @@ For every significant design choice, be able to explain:
 
 M0: context, product requirements, architecture, ADRs, and contracts plan.
 M1: Identity and Gateway implementation baselines.
-M2: Kafka + outbox.
-M3: inventory/payment saga.
-M4: compensation and DLQ.
-M5: observability.
-M6: Kubernetes + autoscaling.
-M7: chaos/load testing.
+M2: Orders documentation and contract gate.
+M3: Orders implementation, Kafka, Inbox, and Outbox.
+M4: Inventory/payment/fulfillment Saga integration.
+M5: compensation, DLQ, and recovery.
+M6: shared observability and SLO evidence.
+M7: Kubernetes, autoscaling, chaos, and load testing.
 M8: architecture review and interview demo.

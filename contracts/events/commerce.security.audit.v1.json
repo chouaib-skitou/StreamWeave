@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://identity.ecommerce.local/contracts/events/commerce.security.audit.v1.json",
+  "$id": "https://schemas.streamweave.dev/commerce/security/audit.v1.json",
   "title": "Commerce Security Audit Event v1",
-  "description": "A sanitized, versioned security fact emitted by Identity through its transactional outbox.",
+  "description": "A sanitized, versioned security fact emitted by an owning platform service through its transactional outbox.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -19,12 +19,12 @@
   "properties": {
     "event_id": { "type": "string", "pattern": "^evt_[A-Za-z0-9]+$" },
     "event_type": { "const": "commerce.security.audit.v1" },
-    "aggregate_type": { "const": "security_audit" },
-    "aggregate_id": { "type": "string", "pattern": "^aud_[A-Za-z0-9]+$" },
+    "aggregate_type": { "enum": ["security_audit", "order"] },
+    "aggregate_id": { "type": "string", "pattern": "^(aud|ord)_[A-Za-z0-9-]+$" },
     "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "causation_id": { "type": ["string", "null"], "maxLength": 128 },
     "occurred_at": { "type": "string", "format": "date-time" },
-    "producer": { "const": "identity" },
+    "producer": { "enum": ["identity", "orders"] },
     "schema_version": { "const": 1 },
     "data": {
       "type": "object",
@@ -51,7 +51,12 @@
             "user.disabled",
             "user.enabled",
             "service_credential.rotated",
-            "service_token.issued"
+            "service_token.issued",
+            "orders.cancellation.requested",
+            "orders.privileged_read",
+            "orders.repair.executed",
+            "orders.dlq.replayed",
+            "orders.compensation.intervened"
           ]
         },
         "outcome": { "type": "string", "enum": ["success", "failure", "denied"] },

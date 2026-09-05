@@ -73,6 +73,6 @@ func DefaultPolicies() []RoutePolicy {
 		{Method: http.MethodPost, Pattern: "/v1/orders", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:write:self", "orders:write:any"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 2 << 20, RequireJSON: true},
 		{Method: http.MethodGet, Pattern: "/v1/orders", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:read:self", "orders:read:any"}, LimitClass: "order-read", Timeout: 5 * time.Second, RetrySafeRead: true, MaxBodyBytes: 0},
 		{Method: http.MethodGet, Pattern: "/v1/orders/{order_id}", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:read:self", "orders:read:any"}, LimitClass: "order-read", Timeout: 5 * time.Second, RetrySafeRead: true, MaxBodyBytes: 0},
-		{Method: http.MethodPost, Pattern: "/v1/orders/{order_id}/cancel", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:cancel:self", "orders:cancel"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
+		{Method: http.MethodPost, Pattern: "/v1/orders/{order_id}/cancel", Owner: "orders", Auth: AuthBearer, Scopes: []string{"orders:cancel:self", "orders:cancel:any"}, LimitClass: "order-write", Timeout: 10 * time.Second, Mutation: true, MaxBodyBytes: 1 << 20},
 	}
 }
