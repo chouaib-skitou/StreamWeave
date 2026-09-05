@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/chouaib-skitou/StreamWeave/compare/v0.3.1...v0.4.0) (2026-09-05)
+
+
+### Features
+
+* **gateway:** promote production-ready gateway to main ([#24](https://github.com/chouaib-skitou/StreamWeave/issues/24)) ([318de1c](https://github.com/chouaib-skitou/StreamWeave/commit/318de1c0f614f94e287aa8035ed82efe8c1d620b))
+
 ## [0.3.1](https://github.com/chouaib-skitou/streamweave/compare/v0.3.0...v0.3.1) (2026-08-30)
 
 
