@@ -1,6 +1,6 @@
 # StreamWeave Orders Service
 
-Orders is the authoritative owner of the order aggregate and its customer-facing asynchronous lifecycle. This directory currently contains the service implementation contract and agent rules; implementation follows the approved Orders PRD, architecture, contracts, ADRs, stories, and runbooks.
+Orders is the authoritative owner of the order aggregate and its customer-facing asynchronous lifecycle. The initial runtime foundation is implemented; business workflows follow as separately verified slices from the approved Orders PRD, architecture, contracts, ADRs, stories, and runbooks.
 
 The service will expose an internal ClusterIP API on container port `8080` and local host port `8082`. Public traffic enters through Gateway on `http://localhost:8081`.
 
@@ -12,4 +12,4 @@ The service will expose an internal ClusterIP API on container port `8080` and l
 - Event and command contracts: [`../../docs/design/orders-kafka.md`](../../docs/design/orders-kafka.md) and [`../../contracts/events/`](../../contracts/events/)
 - Delivery stories: [`../../docs/stories/EPIC-004-orders-service.md`](../../docs/stories/EPIC-004-orders-service.md)
 
-The implementation must not begin until the documentation gate in the PRD and epic is accepted.
+The documentation gate is accepted. Each subsequent workflow slice must preserve the boundaries above and update its contract before implementation when behavior changes.

@@ -98,7 +98,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          for service in identity gateway; do
+          for service in identity gateway orders; do
             dockerfile="deploy/${service}/Dockerfile"
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/streamweave-${service}"
             docker buildx build \

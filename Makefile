@@ -1,4 +1,4 @@
-.PHONY: identity-generate identity-lint identity-test identity-test-integration identity-test-security identity-build identity-image identity-local-env identity-compose-up identity-compose-down identity-kind-deploy identity-smoke gateway-lint gateway-test gateway-build gateway-image gateway-local-env gateway-compose-up gateway-compose-down gateway-kind-deploy local-env local-config local-up local-down local-logs
+.PHONY: identity-generate identity-lint identity-test identity-test-integration identity-test-security identity-build identity-image identity-local-env identity-compose-up identity-compose-down identity-kind-deploy identity-smoke gateway-lint gateway-test gateway-build gateway-image gateway-local-env gateway-compose-up gateway-compose-down gateway-kind-deploy orders-lint orders-test orders-build orders-image local-env local-config local-up local-down local-logs
 
 identity-generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
@@ -59,6 +59,21 @@ gateway-compose-down: local-down
 
 gateway-kind-deploy:
 	helm upgrade --install gateway deploy/gateway/helm --namespace ecommerce-gateway --create-namespace
+
+orders-lint:
+	gofmt -l apps/orders
+	go vet ./apps/orders/...
+
+orders-test:
+	go test ./apps/orders/... -race
+	go test ./apps/orders/internal/application/health -coverprofile=orders-coverage
+	cmd /c "go tool cover -func=orders-coverage"
+
+orders-build:
+	go build -trimpath -ldflags="-s -w" -o orders ./apps/orders/cmd/api
+
+orders-image:
+	docker build -f deploy/orders/Dockerfile -t streamweave-orders:local .
 
 local-env:
 	powershell -NoProfile -Command "if (-not (Test-Path -LiteralPath 'monitoring/local/.env')) { Copy-Item -LiteralPath 'monitoring/local/.env.example' -Destination 'monitoring/local/.env'; Write-Output 'Created monitoring/local/.env from .env.example (local-only, ignored by Git).' }"
