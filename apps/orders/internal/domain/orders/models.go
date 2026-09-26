@@ -10,6 +10,7 @@ const (
 	MaxItems               = 100
 	MaxQuantity            = 1000
 	MaxCurrency            = 3
+	MaxTotalMinor          = int64(1_000_000_000)
 	InitialVersion         = uint64(1)
 	StatusPending   Status = "PENDING"
 	StatusConfirmed Status = "CONFIRMED"
@@ -26,8 +27,12 @@ func (s Status) IsTerminal() bool {
 }
 
 type Item struct {
-	ProductID string
-	Quantity  int32
+	ProductID      string
+	Quantity       int32
+	UnitPriceMinor *int64
+	LineTotalMinor *int64
+	QuoteID        *string
+	QuoteVersion   *int64
 }
 
 type Order struct {
@@ -87,9 +92,87 @@ func NewOrder(id, customerID, currency string, items []Item, now time.Time) (Ord
 }
 
 func (o *Order) Transition(to Status, now time.Time) error {
+	return o.TransitionIfVersion(o.Version, to, now)
+}
+
+func (o *Order) TransitionIfVersion(expectedVersion uint64, to Status, now time.Time) error {
 	if o == nil {
 		return ErrInvalidTransition
 	}
+	if o.Version != expectedVersion {
+		return ErrStaleVersion
+	}
+	if o.Status.IsTerminal() {
+		return ErrTerminalOrder
+	}
+	if now.IsZero() || now.Location() != time.UTC {
+		return ErrInvalidTimestamp
+	}
+	if to == StatusConfirmed {
+		return ErrMissingPrereq
+	}
+	if !allowedTransition(o.Status, to) {
+		return ErrInvalidTransition
+	}
+	o.Status = to
+	o.Version++
+	o.UpdatedAt = now
+	return nil
+}
+
+func (o *Order) ApplyQuote(quoteID string, quoteVersion int64, prices map[string]int64, now time.Time) error {
+	if o == nil {
+		return ErrInvalidTransition
+	}
+	if o.TotalMinor != nil {
+		return ErrPricesAlreadySet
+	}
+	if strings.TrimSpace(quoteID) == "" || quoteVersion < 1 {
+		return ErrInvalidMoney
+	}
+	if now.IsZero() || now.Location() != time.UTC {
+		return ErrInvalidTimestamp
+	}
+	var total int64
+	for index := range o.Items {
+		item := &o.Items[index]
+		price, ok := prices[item.ProductID]
+		if !ok || price < 0 || price > MaxTotalMinor {
+			return ErrInvalidMoney
+		}
+		if price != 0 && int64(item.Quantity) > MaxTotalMinor/price {
+			return ErrMoneyOverflow
+		}
+		lineTotal := int64(item.Quantity) * price
+		if total > MaxTotalMinor-lineTotal {
+			return ErrMoneyOverflow
+		}
+		total += lineTotal
+		priceCopy, lineCopy := price, lineTotal
+		quoteCopy, versionCopy := quoteID, quoteVersion
+		item.UnitPriceMinor, item.LineTotalMinor = &priceCopy, &lineCopy
+		item.QuoteID, item.QuoteVersion = &quoteCopy, &versionCopy
+	}
+	o.TotalMinor = &total
+	o.Version++
+	o.UpdatedAt = now
+	return nil
+}
+
+func (o *Order) Confirm(inventoryReserved, paymentAuthorized bool, expectedVersion uint64, now time.Time) error {
+	if !inventoryReserved || !paymentAuthorized {
+		return ErrMissingPrereq
+	}
+	if o == nil || o.TotalMinor == nil {
+		return ErrMissingPrereq
+	}
+	if o.Version != expectedVersion {
+		return ErrStaleVersion
+	}
+	return o.transitionWithoutPrerequisite(StatusConfirmed, now)
+}
+
+func (o *Order) transitionWithoutPrerequisite(to Status, now time.Time) error {
 	if o.Status.IsTerminal() {
 		return ErrTerminalOrder
 	}
@@ -99,9 +182,7 @@ func (o *Order) Transition(to Status, now time.Time) error {
 	if !allowedTransition(o.Status, to) {
 		return ErrInvalidTransition
 	}
-	o.Status = to
-	o.Version++
-	o.UpdatedAt = now
+	o.Status, o.Version, o.UpdatedAt = to, o.Version+1, now
 	return nil
 }
 
