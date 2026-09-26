@@ -66,7 +66,7 @@ orders-lint:
 
 orders-test:
 	go test ./apps/orders/... -race
-	go test ./apps/orders/internal/application/health -coverprofile=orders-coverage
+	go test ./apps/orders/internal/application/orders -coverprofile=orders-coverage
 	cmd /c "go tool cover -func=orders-coverage"
 
 orders-build:

@@ -33,7 +33,7 @@ jobs:
       - name: Run race tests and coverage
         run: |
           go test ./apps/orders/... -race
-          go test ./apps/orders/internal/application/health -coverprofile=orders-coverage.out
+          go test ./apps/orders/internal/application/orders -coverprofile=orders-coverage.out
       - name: Enforce Orders coverage gate
         shell: bash
         run: |
