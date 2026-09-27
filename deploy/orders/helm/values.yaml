@@ -1,0 +1,57 @@
+image:
+  repository: ghcr.io/chouaib-skitou/streamweave-orders
+  tag: local
+  digest: ""
+  pullPolicy: IfNotPresent
+  requireDigest: false
+replicaCount: 2
+environment: production
+service:
+  port: 8080
+  type: ClusterIP
+imagePullSecrets: []
+terminationGracePeriodSeconds: 30
+pdb:
+  minAvailable: 1
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 1000m, memory: 512Mi }
+config:
+  logLevel: info
+  migrationsPath: /database/orders/migrations
+  openapiPath: /contracts/openapi/orders.openapi.yaml
+  metricsPath: /metrics
+  readinessTimeout: 2s
+  shutdownTimeout: 10s
+  gatewayJWKSURL: https://identity.example.com/.well-known/jwks.json
+  gatewayIssuer: identity
+  gatewayAudience: platform-internal
+  gatewaySubject: svc_gateway
+  inventoryJWKSURL: https://inventory.example.com/.well-known/jwks.json
+  kafkaBrokers: kafka.example.com:9093
+  otelEndpoint: otel-collector.monitoring.svc:4317
+  otelInsecure: false
+secret:
+  existingSecret: orders-external
+  databaseURLKey: database-url
+  gatewayServiceTokenKey: gateway-service-token
+  kafkaBrokersKey: kafka-brokers
+  kafkaSASLUsernameKey: kafka-sasl-username
+  kafkaSASLPasswordKey: kafka-sasl-password
+  cursorSecretKey: cursor-secret
+serviceAccount:
+  create: true
+  name: ""
+networkPolicy:
+  enabled: true
+  gatewayNamespaceSelector: { kubernetes.io/metadata.name: ecommerce-gateway }
+  gatewayPodSelector: { app.kubernetes.io/name: gateway }
+  monitoringNamespaceSelector: { kubernetes.io/metadata.name: monitoring }
+  monitoringPodSelector: { app.kubernetes.io/name: prometheus }
+  databaseNamespaceSelector: {}
+  databasePodSelector: { app.kubernetes.io/name: postgresql }
+  kafkaNamespaceSelector: {}
+  kafkaPodSelector: { app.kubernetes.io/name: kafka }
+  otelNamespaceSelector: { kubernetes.io/metadata.name: monitoring }
+  otelPodSelector: { app.kubernetes.io/name: opentelemetry-collector }
+  externalTLS: false

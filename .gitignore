@@ -26,6 +26,7 @@ kubeconfig*
 /foo
 /foo-bar
 /*-coverage.out
+/*-coverage.tmp
 /orders-coverage
 /identity-coverage
 /$coverageProfile

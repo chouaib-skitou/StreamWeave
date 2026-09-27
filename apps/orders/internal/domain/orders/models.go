@@ -36,23 +36,38 @@ type Item struct {
 }
 
 type Order struct {
-	ID         string
-	CustomerID string
-	Currency   string
-	Items      []Item
-	TotalMinor *int64
-	Status     Status
-	Version    uint64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID            string
+	CustomerID    string
+	Currency      string
+	Items         []Item
+	TotalMinor    *int64
+	ReservationID *string
+	PaymentID     *string
+	ShipmentID    *string
+	FailureCode   *string
+	Status        Status
+	Version       uint64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 var (
-	orderIDPattern    = regexp.MustCompile(`^ord_[A-Za-z0-9]+$`)
-	customerIDPattern = regexp.MustCompile(`^usr_[A-Za-z0-9]+$`)
-	productIDPattern  = regexp.MustCompile(`^prd_[A-Za-z0-9]+$`)
-	currencyPattern   = regexp.MustCompile(`^[A-Z]{3}$`)
+	orderIDPattern       = regexp.MustCompile(`^ord_[A-Za-z0-9]+$`)
+	customerIDPattern    = regexp.MustCompile(`^usr_[A-Za-z0-9]+$`)
+	productIDPattern     = regexp.MustCompile(`^prd_[A-Za-z0-9]+$`)
+	quoteIDPattern       = regexp.MustCompile(`^qte_[A-Za-z0-9]+$`)
+	reservationIDPattern = regexp.MustCompile(`^res_[A-Za-z0-9]+$`)
+	paymentIDPattern     = regexp.MustCompile(`^pay_[A-Za-z0-9]+$`)
+	shipmentIDPattern    = regexp.MustCompile(`^shp_[A-Za-z0-9]+$`)
+	currencyPattern      = regexp.MustCompile(`^[A-Z]{3}$`)
 )
+
+func ValidOrderID(value string) bool       { return orderIDPattern.MatchString(value) }
+func ValidCustomerID(value string) bool    { return customerIDPattern.MatchString(value) }
+func ValidProductID(value string) bool     { return productIDPattern.MatchString(value) }
+func ValidReservationID(value string) bool { return reservationIDPattern.MatchString(value) }
+func ValidPaymentID(value string) bool     { return paymentIDPattern.MatchString(value) }
+func ValidShipmentID(value string) bool    { return shipmentIDPattern.MatchString(value) }
 
 func NewOrder(id, customerID, currency string, items []Item, now time.Time) (Order, error) {
 	if !orderIDPattern.MatchString(id) {
@@ -87,7 +102,10 @@ func NewOrder(id, customerID, currency string, items []Item, now time.Time) (Ord
 	if now.IsZero() || now.Location() != time.UTC {
 		return Order{}, ErrInvalidTimestamp
 	}
-	copyItems := append([]Item(nil), items...)
+	copyItems := make([]Item, len(items))
+	for index, item := range items {
+		copyItems[index] = Item{ProductID: item.ProductID, Quantity: item.Quantity}
+	}
 	return Order{ID: id, CustomerID: customerID, Currency: currency, Items: copyItems, Status: StatusPending, Version: InitialVersion, CreatedAt: now, UpdatedAt: now}, nil
 }
 
@@ -124,18 +142,22 @@ func (o *Order) ApplyQuote(quoteID string, quoteVersion int64, prices map[string
 	if o == nil {
 		return ErrInvalidTransition
 	}
-	if o.TotalMinor != nil {
+	if o.Status != StatusPending || o.TotalMinor != nil {
 		return ErrPricesAlreadySet
 	}
-	if strings.TrimSpace(quoteID) == "" || quoteVersion < 1 {
+	if !quoteIDPattern.MatchString(quoteID) || quoteVersion < 1 {
 		return ErrInvalidMoney
 	}
 	if now.IsZero() || now.Location() != time.UTC {
 		return ErrInvalidTimestamp
 	}
 	var total int64
+	type quoteLine struct {
+		price, lineTotal int64
+	}
+	lines := make([]quoteLine, len(o.Items))
 	for index := range o.Items {
-		item := &o.Items[index]
+		item := o.Items[index]
 		price, ok := prices[item.ProductID]
 		if !ok || price < 0 || price > MaxTotalMinor {
 			return ErrInvalidMoney
@@ -148,10 +170,13 @@ func (o *Order) ApplyQuote(quoteID string, quoteVersion int64, prices map[string
 			return ErrMoneyOverflow
 		}
 		total += lineTotal
-		priceCopy, lineCopy := price, lineTotal
+		lines[index] = quoteLine{price: price, lineTotal: lineTotal}
+	}
+	for index := range o.Items {
+		priceCopy, lineCopy := lines[index].price, lines[index].lineTotal
 		quoteCopy, versionCopy := quoteID, quoteVersion
-		item.UnitPriceMinor, item.LineTotalMinor = &priceCopy, &lineCopy
-		item.QuoteID, item.QuoteVersion = &quoteCopy, &versionCopy
+		o.Items[index].UnitPriceMinor, o.Items[index].LineTotalMinor = &priceCopy, &lineCopy
+		o.Items[index].QuoteID, o.Items[index].QuoteVersion = &quoteCopy, &versionCopy
 	}
 	o.TotalMinor = &total
 	o.Version++

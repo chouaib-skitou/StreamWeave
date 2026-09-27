@@ -63,7 +63,7 @@ func TestReadinessFailureAndOpenAPIFailure(t *testing.T) {
 		t.Fatalf("ready=%d", got)
 	}
 	s.openAPIPath = filepath.Join(t.TempDir(), "missing.yaml")
-	if got := request(s, http.MethodGet, "/v1/openapi.yaml").Code; got != http.StatusServiceUnavailable {
+	if got := request(s, http.MethodGet, "/v1/openapi.yaml").Code; got != http.StatusNotFound {
 		t.Fatalf("openapi=%d", got)
 	}
 }

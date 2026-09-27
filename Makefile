@@ -60,17 +60,23 @@ gateway-compose-down: local-down
 gateway-kind-deploy:
 	helm upgrade --install gateway deploy/gateway/helm --namespace ecommerce-gateway --create-namespace
 
+orders-generate:
+	sqlc generate -f sqlc-orders.yaml
+
 orders-lint:
-	gofmt -l apps/orders
+	powershell -NoProfile -Command "$$files = gofmt -l apps/orders; if ($$files) { $$files; exit 1 }"
 	go vet ./apps/orders/...
 
 orders-test:
 	go test ./apps/orders/... -race
 	go test ./apps/orders/internal/application/orders -coverprofile=orders-coverage
 	cmd /c "go tool cover -func=orders-coverage"
+	powershell -NoProfile -ExecutionPolicy Bypass -Command "$$coverage = (cmd /c 'go tool cover -func=orders-coverage' | Select-String '^total:' | ForEach-Object { [double](($$_).ToString().Split()[-1].TrimEnd('%')) }); if ($$coverage -lt 85) { throw \"Orders coverage is $$coverage%\" }; Write-Output \"Orders coverage: $$coverage%\""
 
 orders-build:
 	go build -trimpath -ldflags="-s -w" -o orders ./apps/orders/cmd/api
+	go build -trimpath -ldflags="-s -w" -o orders-relay ./apps/orders/cmd/relay
+	go build -trimpath -ldflags="-s -w" -o orders-migrate ./apps/orders/cmd/migrate
 
 orders-image:
 	docker build -f deploy/orders/Dockerfile -t streamweave-orders:local .

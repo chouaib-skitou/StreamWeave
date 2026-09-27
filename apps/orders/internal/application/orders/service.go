@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 
 	domain "github.com/chouaib-skitou/streamweave/apps/orders/internal/domain/orders"
@@ -15,6 +16,12 @@ const (
 	CreateOperation = "orders.create"
 	CancelOperation = "orders.cancel"
 	MaxPageSize     = 100
+)
+
+var (
+	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{16,256}$`)
+	reasonPattern         = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,31}$`)
+	actorPattern          = regexp.MustCompile(`^usr_[A-Za-z0-9]+$`)
 )
 
 type Service struct {
@@ -57,10 +64,13 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	if err := authorizeActor(input.Actor); err != nil {
 		return CreateResult{}, err
 	}
-	if strings.TrimSpace(input.IdempotencyKey) == "" {
+	if !idempotencyKeyPattern.MatchString(input.IdempotencyKey) {
 		return CreateResult{}, ErrInvalidInput
 	}
 	if input.CustomerID != input.Actor.Subject && !input.Actor.HasScope("orders:write:any") {
+		return CreateResult{}, ErrForbidden
+	}
+	if input.CustomerID == input.Actor.Subject && !input.Actor.HasScope("orders:write:self") && !input.Actor.HasScope("orders:write:any") {
 		return CreateResult{}, ErrForbidden
 	}
 	now := s.clock.Now().UTC()
@@ -72,16 +82,19 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		CustomerID string
 		Currency   string
 		Items      []domain.Item
-	}{input.CustomerID, strings.ToUpper(strings.TrimSpace(input.Currency)), input.Items})
+	}{input.CustomerID, strings.ToUpper(strings.TrimSpace(input.Currency)), order.Items})
 	if err != nil {
 		return CreateResult{}, err
 	}
-	return s.store.Create(ctx, order, CreateOperation, input.IdempotencyKey, hash)
+	return s.store.Create(ctx, input.Actor.Subject, order, CreateOperation, input.IdempotencyKey, hash)
 }
 
 func (s *Service) Get(ctx context.Context, actor Actor, orderID string) (domain.Order, error) {
 	if err := authorizeActor(actor); err != nil {
 		return domain.Order{}, err
+	}
+	if !domain.ValidOrderID(orderID) {
+		return domain.Order{}, ErrInvalidInput
 	}
 	order, err := s.store.FindByID(ctx, orderID)
 	if err != nil {
@@ -89,6 +102,9 @@ func (s *Service) Get(ctx context.Context, actor Actor, orderID string) (domain.
 	}
 	if order.CustomerID != actor.Subject && !actor.HasScope("orders:read:any") {
 		return domain.Order{}, ErrNotFound
+	}
+	if order.CustomerID == actor.Subject && !actor.HasScope("orders:read:self") && !actor.HasScope("orders:read:any") {
+		return domain.Order{}, ErrForbidden
 	}
 	return order, nil
 }
@@ -100,12 +116,24 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]domain.Order, st
 	if input.Limit < 1 || input.Limit > MaxPageSize {
 		return nil, "", ErrInvalidInput
 	}
+	if len(input.Cursor) > 256 {
+		return nil, "", ErrInvalidCursor
+	}
+	if input.Status != "" && !validStatus(input.Status) {
+		return nil, "", ErrInvalidInput
+	}
 	target := input.CustomerID
 	if target == "" {
 		target = input.Actor.Subject
 	}
 	if target != input.Actor.Subject && !input.Actor.HasScope("orders:read:any") {
 		return nil, "", ErrForbidden
+	}
+	if target == input.Actor.Subject && !input.Actor.HasScope("orders:read:self") && !input.Actor.HasScope("orders:read:any") {
+		return nil, "", ErrForbidden
+	}
+	if !domain.ValidCustomerID(target) {
+		return nil, "", ErrInvalidInput
 	}
 	return s.store.List(ctx, target, input.Status, input.Cursor, input.Limit)
 }
@@ -114,7 +142,10 @@ func (s *Service) Cancel(ctx context.Context, input CancelInput) (domain.Order, 
 	if err := authorizeActor(input.Actor); err != nil {
 		return domain.Order{}, err
 	}
-	if strings.TrimSpace(input.IdempotencyKey) == "" {
+	if !idempotencyKeyPattern.MatchString(input.IdempotencyKey) {
+		return domain.Order{}, ErrInvalidInput
+	}
+	if !domain.ValidOrderID(input.OrderID) {
 		return domain.Order{}, ErrInvalidInput
 	}
 	order, err := s.store.FindByID(ctx, input.OrderID)
@@ -124,18 +155,37 @@ func (s *Service) Cancel(ctx context.Context, input CancelInput) (domain.Order, 
 	if order.CustomerID != input.Actor.Subject && !input.Actor.HasScope("orders:cancel:any") {
 		return domain.Order{}, ErrNotFound
 	}
+	if order.CustomerID == input.Actor.Subject && !input.Actor.HasScope("orders:cancel:self") && !input.Actor.HasScope("orders:cancel:any") {
+		return domain.Order{}, ErrForbidden
+	}
 	reason := strings.TrimSpace(input.Reason)
 	if reason == "" {
 		reason = "CUSTOMER_REQUESTED"
 	}
-	return s.store.RequestCancellation(ctx, order.ID, reason, order.Version, s.clock.Now().UTC())
+	if !reasonPattern.MatchString(reason) {
+		return domain.Order{}, ErrInvalidInput
+	}
+	hash, err := requestHash(struct{ OrderID, Reason string }{input.OrderID, reason})
+	if err != nil {
+		return domain.Order{}, err
+	}
+	return s.store.RequestCancellation(ctx, input.Actor.Subject, order.ID, CancelOperation, input.IdempotencyKey, hash, reason, order.Version, s.clock.Now().UTC())
 }
 
 func authorizeActor(actor Actor) error {
-	if !strings.HasPrefix(actor.Subject, "usr_") {
+	if actor.Type != "human" || !actorPattern.MatchString(actor.Subject) {
 		return ErrUnauthorized
 	}
 	return nil
+}
+
+func validStatus(value string) bool {
+	switch value {
+	case string(domain.StatusPending), string(domain.StatusConfirmed), string(domain.StatusCancelReq), string(domain.StatusCancelled), string(domain.StatusCompleted), string(domain.StatusFailed):
+		return true
+	default:
+		return false
+	}
 }
 
 func requestHash(value any) (string, error) {

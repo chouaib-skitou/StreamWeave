@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "orders.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "orders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        {{- include "orders.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      serviceAccountName: {{ include "orders.apiServiceAccountName" . }}
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: orders-migrate
+          image: {{ include "orders.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/orders-migrate]
+          env:
+            - { name: ORDERS_MIGRATIONS_PATH, value: {{ .Values.config.migrationsPath | quote }} }
+            - { name: ORDERS_DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.databaseURLKey }} } } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

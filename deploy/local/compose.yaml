@@ -39,6 +39,17 @@ services:
       identity-kafka: { condition: service_healthy }
     command: [/opt/kafka/bin/kafka-topics.sh, --bootstrap-server, identity-kafka:9092, --create, --if-not-exists, --topic, commerce.security.audit.v1, --partitions, '1', --replication-factor, '1']
 
+  orders-kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on:
+      identity-kafka: { condition: service_healthy }
+    entrypoint: [/bin/bash, -ec]
+    command:
+      - |
+        for topic in commerce.order.events.v1 commerce.inventory.commands.v1 commerce.inventory.events.v1 commerce.payment.commands.v1 commerce.payment.events.v1 commerce.fulfillment.commands.v1 commerce.fulfillment.events.v1 commerce.dlq.v1; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server identity-kafka:9092 --create --if-not-exists --topic "$$topic" --partitions 1 --replication-factor 1
+        done
+
   mailhog:
     image: mailhog/mailhog:v1.0.1
     ports: ['8025:8025', '1025:1025']
@@ -117,20 +128,55 @@ services:
     build: { context: ../.., dockerfile: deploy/orders/Dockerfile }
     environment:
       ORDERS_HTTP_ADDR: :8080
+      ORDERS_ROLE: api
       ORDERS_OPENAPI_PATH: /contracts/openapi/orders.openapi.yaml
+      ORDERS_MIGRATIONS_PATH: /database/orders/migrations
       ORDERS_ENVIRONMENT: development
       ORDERS_DATABASE_URL: postgres://orders:${ORDERS_DB_PASSWORD:?set ORDERS_DB_PASSWORD in monitoring/local/.env}@orders-postgres:5432/orders?sslmode=disable
-      ORDERS_KAFKA_BROKERS: identity-kafka:9092
       ORDERS_OTEL_ENDPOINT: otel-collector:4317
       ORDERS_OTEL_INSECURE: 'true'
+      ORDERS_GATEWAY_SERVICE_TOKEN: ${GATEWAY_SERVICE_TOKEN:?set GATEWAY_SERVICE_TOKEN in monitoring/local/.env}
+      ORDERS_GATEWAY_JWKS_URL: http://identity:8080/.well-known/jwks.json
+      ORDERS_GATEWAY_ISSUER: identity.local
+      ORDERS_GATEWAY_AUDIENCE: platform-internal
+      ORDERS_GATEWAY_SUBJECT: svc_gateway
       ORDERS_LOG_LEVEL: info
     depends_on:
       orders-postgres: { condition: service_healthy }
-      identity-kafka-init: { condition: service_completed_successfully }
+      orders-kafka-init: { condition: service_completed_successfully }
+      orders-migrate: { condition: service_completed_successfully }
     ports: ['8082:8080']
     read_only: true
     user: 'orders'
     healthcheck: { test: [CMD, wget, --spider, -q, http://localhost:8080/health/ready], interval: 10s, timeout: 3s, retries: 10 }
+
+  orders-relay:
+    build: { context: ../.., dockerfile: deploy/orders/Dockerfile }
+    entrypoint: [/orders-relay]
+    environment:
+      ORDERS_MIGRATIONS_PATH: /database/orders/migrations
+      ORDERS_ROLE: relay
+      ORDERS_ENVIRONMENT: development
+      ORDERS_DATABASE_URL: postgres://orders:${ORDERS_DB_PASSWORD:?set ORDERS_DB_PASSWORD in monitoring/local/.env}@orders-postgres:5432/orders?sslmode=disable
+      ORDERS_KAFKA_BROKERS: identity-kafka:9092
+      ORDERS_INVENTORY_JWKS_URL: http://inventory:8080/.well-known/jwks.json
+    depends_on:
+      orders-postgres: { condition: service_healthy }
+      orders-kafka-init: { condition: service_completed_successfully }
+      orders-migrate: { condition: service_completed_successfully }
+    read_only: true
+    user: 'orders'
+
+  orders-migrate:
+    build: { context: ../.., dockerfile: deploy/orders/Dockerfile }
+    entrypoint: [/orders-migrate]
+    environment:
+      ORDERS_MIGRATIONS_PATH: /database/orders/migrations
+      ORDERS_DATABASE_URL: postgres://orders:${ORDERS_DB_PASSWORD:?set ORDERS_DB_PASSWORD in monitoring/local/.env}@orders-postgres:5432/orders?sslmode=disable
+    depends_on:
+      orders-postgres: { condition: service_healthy }
+    read_only: true
+    user: 'orders'
 
 volumes:
   streamweave-local-postgres-data:
