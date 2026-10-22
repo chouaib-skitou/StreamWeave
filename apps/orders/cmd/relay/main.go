@@ -55,14 +55,37 @@ func run() error {
 		transport.SASL = dialer.SASLMechanism
 	}
 	relay := &relay{store: store, brokers: splitBrokers(cfg.KafkaBrokers), logger: logger, writers: make(map[string]*kafka.Writer), dialer: dialer, transport: transport, owner: "orders-relay-" + uuid.NewString()}
+	var consumers sync.WaitGroup
 	for _, topic := range []string{"commerce.inventory.events.v1", "commerce.payment.events.v1", "commerce.fulfillment.events.v1"} {
-		go relay.consume(ctx, topic)
+		consumers.Add(1)
+		go func() {
+			defer consumers.Done()
+			relay.consume(ctx, topic)
+		}()
 	}
-	return relay.publish(ctx)
+	err = relay.publish(ctx)
+	stop()
+	consumers.Wait()
+	relay.closeWriters()
+	return err
+}
+
+type relayStore interface {
+	ClaimPendingOutbox(context.Context, string, int, time.Time) ([]postgres.OutboxEvent, error)
+	MarkOutboxFailed(context.Context, uuid.UUID, string, time.Time) error
+	MarkOutboxPublished(context.Context, uuid.UUID, time.Time) error
+	ProcessFact(context.Context, string, []byte) error
+	RecordFactFailure(context.Context, string, []byte, string, time.Time) (bool, int32, error)
+	MarkFactDeadLetter(context.Context, string, string, string) error
+}
+
+type factReader interface {
+	FetchMessage(context.Context) (kafka.Message, error)
+	CommitMessages(context.Context, ...kafka.Message) error
 }
 
 type relay struct {
-	store     *postgres.Store
+	store     relayStore
 	brokers   []string
 	logger    *slog.Logger
 	writers   map[string]*kafka.Writer
@@ -78,7 +101,6 @@ func (r *relay) publish(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			r.closeWriters()
 			return nil
 		case <-ticker.C:
 			if err := r.publishBatch(ctx); err != nil {
@@ -121,6 +143,10 @@ func (r *relay) publishBatch(ctx context.Context) error {
 func (r *relay) consume(ctx context.Context, topic string) {
 	reader := kafka.NewReader(kafka.ReaderConfig{Brokers: r.brokers, Dialer: r.dialer, Topic: topic, GroupID: consumerGroup, MinBytes: 1, MaxBytes: 4 << 20, CommitInterval: 0})
 	defer reader.Close()
+	r.consumeMessages(ctx, topic, reader)
+}
+
+func (r *relay) consumeMessages(ctx context.Context, topic string, reader factReader) {
 	for {
 		message, err := reader.FetchMessage(ctx)
 		if err != nil {
@@ -128,39 +154,61 @@ func (r *relay) consume(ctx context.Context, topic string) {
 				return
 			}
 			r.logger.Error("orders event read failed", "topic", topic, "error", err)
-			time.Sleep(time.Second)
-			continue
-		}
-		if err := r.store.ProcessFact(ctx, consumerGroup, message.Value); err != nil {
-			r.logger.Error("orders event processing failed", "topic", topic, "error", err)
-			dlq, attempts, recordErr := r.store.RecordFactFailure(ctx, consumerGroup, message.Value, err.Error(), time.Now().UTC().Add(inboxBackoff(1)))
-			if recordErr != nil {
-				r.logger.Error("orders inbox failure state update failed", "topic", topic, "error", recordErr)
-				continue
-			}
-			if dlq {
-				if dlqErr := r.publishDLQ(ctx, topic, message.Value, err.Error()); dlqErr != nil {
-					r.logger.Error("orders DLQ publish failed", "topic", topic, "error", dlqErr)
-					continue
-				}
-				if eventID := factEventID(message.Value); eventID != "" {
-					if markErr := r.store.MarkFactDeadLetter(ctx, consumerGroup, eventID, err.Error()); markErr != nil {
-						r.logger.Error("orders DLQ state update failed", "topic", topic, "error", markErr)
-						continue
-					}
-				}
-				if commitErr := reader.CommitMessages(ctx, message); commitErr != nil {
-					r.logger.Error("orders DLQ offset commit failed", "topic", topic, "error", commitErr)
-				}
-			} else if !sleepWithContext(ctx, inboxBackoff(int(attempts))) {
+			if !sleepWithContext(ctx, time.Second) {
 				return
 			}
 			continue
 		}
-		if err := reader.CommitMessages(ctx, message); err != nil {
-			r.logger.Error("orders event commit failed", "topic", topic, "error", err)
+		// Do not fetch a later offset until this message is processed or durably
+		// quarantined. Committing a later offset also acknowledges earlier failures.
+		for ctx.Err() == nil {
+			if r.processMessage(ctx, topic, message) {
+				if err := reader.CommitMessages(ctx, message); err != nil {
+					r.logger.Error("orders event commit failed", "topic", topic, "error", err)
+					if !sleepWithContext(ctx, time.Second) {
+						return
+					}
+					continue
+				}
+				break
+			}
+		}
+		if ctx.Err() != nil {
+			return
 		}
 	}
+}
+
+// processMessage returns true only after a transaction or DLQ publication has
+// completed. The caller retains ownership of the offset until commit succeeds.
+func (r *relay) processMessage(ctx context.Context, topic string, message kafka.Message) bool {
+	if err := r.store.ProcessFact(ctx, consumerGroup, message.Value); err != nil {
+		r.logger.Error("orders event processing failed", "topic", topic, "error", err)
+		dlq, attempts, recordErr := r.store.RecordFactFailure(ctx, consumerGroup, message.Value, err.Error(), time.Now().UTC().Add(inboxBackoff(1)))
+		if recordErr != nil {
+			r.logger.Error("orders inbox failure state update failed", "topic", topic, "error", recordErr)
+			sleepWithContext(ctx, time.Second)
+			return false
+		}
+		if dlq {
+			if dlqErr := r.publishDLQ(ctx, topic, message.Value, err.Error()); dlqErr != nil {
+				r.logger.Error("orders DLQ publish failed", "topic", topic, "error", dlqErr)
+				sleepWithContext(ctx, time.Second)
+				return false
+			}
+			if eventID := factEventID(message.Value); eventID != "" {
+				if markErr := r.store.MarkFactDeadLetter(ctx, consumerGroup, eventID, err.Error()); markErr != nil {
+					r.logger.Error("orders DLQ state update failed", "topic", topic, "error", markErr)
+					sleepWithContext(ctx, time.Second)
+					return false
+				}
+			}
+			return true
+		}
+		sleepWithContext(ctx, inboxBackoff(int(attempts)))
+		return false
+	}
+	return true
 }
 
 func factEventID(payload []byte) string {
@@ -189,7 +237,7 @@ func (r *relay) publishDLQ(ctx context.Context, sourceTopic string, payload []by
 	dlqPayload, err := json.Marshal(map[string]any{
 		"source_topic":   sourceTopic,
 		"consumer_group": consumerGroup,
-		"payload":        json.RawMessage(payload),
+		"payload":        dlqBody(payload),
 		"reason":         reason,
 		"quarantined_at": time.Now().UTC(),
 	})
@@ -197,6 +245,15 @@ func (r *relay) publishDLQ(ctx context.Context, sourceTopic string, payload []by
 		return err
 	}
 	return writer.WriteMessages(ctx, kafka.Message{Key: []byte("orders"), Value: dlqPayload})
+}
+
+// Invalid JSON must still be quarantinable; encoding bytes preserves the exact
+// message as base64 instead of failing while marshaling a json.RawMessage.
+func dlqBody(payload []byte) any {
+	if json.Valid(payload) {
+		return json.RawMessage(payload)
+	}
+	return payload
 }
 
 func outboxBackoff(attempts int32) time.Duration {

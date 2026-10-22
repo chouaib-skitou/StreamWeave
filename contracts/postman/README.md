@@ -15,7 +15,8 @@ services are implemented. Runtime values and tokens are stored in the active
 Postman environment; real credentials must never be committed.
 
 Run the Identity flow first, then the Gateway order flow, and finally the
-Orders contract checks. The collection extracts access and refresh tokens from
+Orders contract checks, then `Cleanup` to log out. The collection extracts
+access and refresh tokens from
 the login response and stores the created order identifier for subsequent
 requests.
 

@@ -34,10 +34,21 @@ func (c *Connection) Migrate(ctx context.Context, directory string) error {
 		return err
 	}
 	const migrationLock int64 = 838927451
-	queries := generated.New(c.db)
+	// PostgreSQL advisory locks belong to a session. Pin acquisition and release
+	// to the same connection instead of letting the pool choose two sessions.
+	lockConnection, err := c.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer lockConnection.Close()
+	queries := generated.New(lockConnection)
 	if err := queries.AcquireMigrationLock(ctx, migrationLock); err != nil {
 		return err
 	}
-	defer func() { _ = queries.ReleaseMigrationLock(context.Background(), migrationLock) }()
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = queries.ReleaseMigrationLock(releaseCtx, migrationLock)
+	}()
 	return goose.UpContext(ctx, c.db, directory)
 }

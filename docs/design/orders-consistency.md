@@ -8,6 +8,11 @@ Order state, item snapshots, Saga transition, Inbox/Outbox writes, and idempoten
 
 Kafka provides at-least-once eventual consistency. The system does not claim distributed exactly-once delivery. Correctness comes from durable state guards, deterministic operation IDs, Inbox deduplication, Outbox publication, and compensation.
 
+The relay retries the current Kafka message before fetching another offset.
+An offset is committed only after processing succeeds or the message is
+published to the DLQ and its Inbox quarantine state is persisted. Malformed
+JSON is preserved as base64 in the DLQ payload; valid JSON stays structured.
+
 ## Failure matrix
 
 | Failure | Client-visible behavior | Durable response |

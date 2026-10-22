@@ -18,7 +18,7 @@
     { "key": "verification_token", "value": "" },
     { "key": "session_id", "value": "" },
     { "key": "order_id", "value": "" },
-    { "key": "product_id", "value": "prd_postman_demo" },
+    { "key": "product_id", "value": "prd_postmandemo" },
     { "key": "next_cursor", "value": "" },
     { "key": "correlation_id", "value": "" },
     { "key": "idempotency_key", "value": "" },

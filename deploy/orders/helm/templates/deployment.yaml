@@ -19,6 +19,10 @@ spec:
         app.kubernetes.io/component: api
     spec:
       serviceAccountName: {{ include "orders.apiServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
@@ -41,6 +45,7 @@ spec:
             - { name: ORDERS_GATEWAY_ISSUER, value: {{ .Values.config.gatewayIssuer | quote }} }
             - { name: ORDERS_GATEWAY_AUDIENCE, value: {{ .Values.config.gatewayAudience | quote }} }
             - { name: ORDERS_GATEWAY_SUBJECT, value: {{ .Values.config.gatewaySubject | quote }} }
+            - { name: ORDERS_INVENTORY_JWKS_URL, value: {{ .Values.config.inventoryJWKSURL | quote }} }
             - { name: ORDERS_OTEL_ENDPOINT, value: {{ .Values.config.otelEndpoint | quote }} }
             - { name: ORDERS_OTEL_INSECURE, value: {{ .Values.config.otelInsecure | quote }} }
             - { name: ORDERS_CURSOR_SECRET, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.cursorSecretKey }} } } }
@@ -74,6 +79,10 @@ spec:
         app.kubernetes.io/component: relay
     spec:
       serviceAccountName: {{ include "orders.relayServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }

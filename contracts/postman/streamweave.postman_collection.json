@@ -20,7 +20,7 @@
     { "key": "reset_token", "value": "" },
     { "key": "session_id", "value": "" },
     { "key": "order_id", "value": "" },
-    { "key": "product_id", "value": "prd_postman_demo" },
+    { "key": "product_id", "value": "prd_postmandemo" },
     { "key": "correlation_id", "value": "" },
     { "key": "idempotency_key", "value": "streamweave-postman-create-001" },
     { "key": "cancel_idempotency_key", "value": "streamweave-postman-cancel-001" }
@@ -105,11 +105,6 @@
           "name": "List sessions",
           "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{identity_url}}/v1/auth/sessions" },
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Sessions returned', () => pm.response.to.have.status(200));"] } }]
-        },
-        {
-          "name": "Logout",
-          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{identity_url}}/v1/auth/logout" },
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Logout completed', () => pm.response.to.have.status(204));"] } }]
         }
       ]
     },
@@ -188,6 +183,15 @@
     { "name": "Inventory Service", "description": "Reserved for the Inventory service collection.", "item": [] },
     { "name": "Payments Service", "description": "Reserved for the Payments service collection.", "item": [] },
     { "name": "Fulfillment Service", "description": "Reserved for the Fulfillment service collection.", "item": [] },
-    { "name": "Notifications Service", "description": "Reserved for the Notifications service collection.", "item": [] }
+    { "name": "Notifications Service", "description": "Reserved for the Notifications service collection.", "item": [] },
+    {
+      "name": "Cleanup",
+      "description": "Run after all service scenarios so the shared access token stays valid during the collection run.",
+      "item": [{
+        "name": "Logout",
+        "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{identity_url}}/v1/auth/logout" },
+        "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Logout completed', () => pm.response.to.have.status(204));"] } }]
+      }]
+    }
   ]
 }

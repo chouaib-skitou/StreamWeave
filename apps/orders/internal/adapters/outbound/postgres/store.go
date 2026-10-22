@@ -385,7 +385,10 @@ func (s *Store) ProcessFact(ctx context.Context, consumerGroup string, payload [
 			if err := s.insertCompensationCommands(ctx, q, order, envelope.SagaID, envelope.EventID, envelope.EventType, now); err != nil {
 				return err
 			}
-			return s.maybeCompleteCancellation(ctx, q, order, envelope.SagaID, envelope.EventID, now)
+			if err := s.maybeCompleteCancellation(ctx, q, order, envelope.SagaID, envelope.EventID, now); err != nil {
+				return err
+			}
+			break
 		}
 		if order.Status.IsTerminal() {
 			break
