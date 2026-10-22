@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.streamweave.dev/commerce/command-envelope.v1.json",
+  "title": "StreamWeave Commerce Command Envelope v1",
+  "type": "object",
+  "required": ["command_id", "command_type", "aggregate_type", "aggregate_id", "aggregate_version", "saga_id", "correlation_id", "causation_id", "issued_at", "producer", "schema_version", "operation_id", "data"],
+  "properties": {
+    "command_id": { "type": "string", "pattern": "^cmd_[A-Za-z0-9]+$" },
+    "command_type": { "type": "string", "pattern": "^commerce\\.[a-z0-9_.]+\\.v[0-9]+$" },
+    "aggregate_type": { "type": "string", "enum": ["order", "inventory", "payment", "fulfillment"] },
+    "aggregate_id": { "type": "string", "minLength": 5, "maxLength": 128 },
+    "aggregate_version": { "type": "integer", "minimum": 1 },
+    "saga_id": { "type": "string", "pattern": "^sag_[A-Za-z0-9]+$" },
+    "correlation_id": { "type": "string", "pattern": "^ord_[A-Za-z0-9]+$" },
+    "causation_id": { "type": "string", "pattern": "^(evt|cmd)_[A-Za-z0-9]+$" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "producer": { "const": "orders" },
+    "schema_version": { "type": "integer", "const": 1 },
+    "operation_id": { "type": "string", "pattern": "^(ord|res|pay|shp)_[A-Za-z0-9]+:[a-z0-9-]+$" },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": false
+}

@@ -240,7 +240,7 @@ func (s *Server) matchPolicy(method, path string) (domain.RoutePolicy, bool) {
 
 var orderIDPath = regexp.MustCompile(`^/v1/orders/ord_[A-Za-z0-9]+(?:/cancel)?$`)
 var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{16,256}$`)
-var customerIDPattern = regexp.MustCompile(`^cus_[A-Za-z0-9]+$`)
+var customerIDPattern = regexp.MustCompile(`^usr_[A-Za-z0-9]+$`)
 
 func routeMatches(pattern, path string) bool {
 	if pattern == path {

@@ -1,4 +1,29 @@
-# Identity Service Postman Tests
+# StreamWeave Postman Tests
+
+## Unified collection
+
+The recommended entry point is the shared collection and environment:
+
+1. `streamweave.postman_collection.json`
+2. `streamweave.local.postman_environment.json`
+
+The collection is organized as `Variables`, `Identity Service`, `Gateway
+Service`, `Orders Service`, `Inventory Service`, `Payments Service`,
+`Fulfillment Service`, and `Notifications Service`. The last four folders are
+reserved for their service contracts and are intentionally empty until those
+services are implemented. Runtime values and tokens are stored in the active
+Postman environment; real credentials must never be committed.
+
+Run the Identity flow first, then the Gateway order flow, and finally the
+Orders contract checks, then `Cleanup` to log out. The collection extracts
+access and refresh tokens from
+the login response and stores the created order identifier for subsequent
+requests.
+
+The service-specific collections below remain available for exhaustive route
+coverage and advanced RBAC, password-reset, and internal-contract scenarios.
+
+## Identity Service
 
 Import both files in this directory:
 
@@ -40,3 +65,19 @@ Local uses MailHog as a real SMTP server. Open `http://localhost:8025` to
 inspect the rendered HTML and text versions. Staging and production use the
 SMTP configurations documented in `deploy/identity/staging` and
 `deploy/identity/production`.
+
+## Orders Service
+
+Import both files:
+
+1. `orders-service.postman_collection.json`
+2. `orders.local.postman_environment.json`
+
+The collection covers the three local backend health checks, Gateway setup and
+authentication, every Orders operation route, the public Gateway order flow,
+and the internal Orders contract. Set `gateway_service_token` to the same
+local value as `GATEWAY_SERVICE_TOKEN` in `monitoring/local/.env`. Run the
+`Local setup` folder first. It creates a development customer, extracts the
+real verification token from MailHog, verifies the email, and stores the access
+and refresh tokens for subsequent requests. The demo account is local-only and
+is not a production seed.

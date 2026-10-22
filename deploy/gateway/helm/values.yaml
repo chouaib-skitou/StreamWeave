@@ -21,7 +21,7 @@ config:
   issuer: identity.local
   humanAudience: platform-api
   serviceClientID: gateway
-  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:cancel"
+  serviceScopes: "identity:sessions:read,identity:sessions:write,orders:read:self,orders:read:any,orders:write:self,orders:write:any,orders:cancel:self,orders:cancel:any"
   logLevel: info
   metricsPath: /metrics
   openapiPath: /contracts/openapi/gateway.openapi.yaml

@@ -217,7 +217,7 @@ paths:
         - name: customer_id
           in: query
           description: Operator-only filter; customer requests are constrained by Orders ownership policy.
-          schema: { type: string, pattern: '^cus_[A-Za-z0-9]+$' }
+          schema: { type: string, pattern: '^usr_[A-Za-z0-9]+$' }
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
       responses:
@@ -255,10 +255,13 @@ paths:
       parameters:
         - $ref: '#/components/parameters/OrderId'
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/CancelOrderRequest' } } }
       responses:
         '202':
           description: Cancellation accepted for asynchronous processing
-          content: { application/json: { schema: { $ref: '#/components/schemas/OrderAccepted' } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/CancellationAccepted' } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -402,9 +405,10 @@ components:
       required: [customer_id, items, currency]
       additionalProperties: false
       properties:
-        customer_id: { type: string, pattern: '^cus_[A-Za-z0-9]+$' }
+        customer_id: { type: string, pattern: '^usr_[A-Za-z0-9]+$' }
         items:
           type: array
+          maxItems: 100
           minItems: 1
           items: { $ref: '#/components/schemas/OrderItemRequest' }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
@@ -414,32 +418,50 @@ components:
       additionalProperties: false
       properties:
         product_id: { type: string, pattern: '^prd_[A-Za-z0-9]+$' }
-        quantity: { type: integer, minimum: 1, maximum: 10000 }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
     OrderAccepted:
       type: object
       required: [order_id, status, created_at]
       properties:
         order_id: { type: string, pattern: '^ord_[A-Za-z0-9]+$' }
-        status: { type: string, enum: [PENDING, ACCEPTED] }
+        status: { type: string, const: PENDING }
         created_at: { type: string, format: date-time }
-    Order:
+    CancellationAccepted:
       type: object
-      required: [order_id, customer_id, status, currency, items, created_at]
+      required: [order_id, status, created_at]
+      additionalProperties: false
       properties:
         order_id: { type: string, pattern: '^ord_[A-Za-z0-9]+$' }
-        customer_id: { type: string, pattern: '^cus_[A-Za-z0-9]+$' }
+        status: { type: string, const: CANCEL_REQUESTED }
+        created_at: { type: string, format: date-time }
+    CancelOrderRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason_code: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,31}$', default: CUSTOMER_REQUESTED, description: Stable cancellation reason; Orders uses CUSTOMER_REQUESTED when the body is omitted. }
+    Order:
+      type: object
+      required: [order_id, customer_id, status, currency, total_minor, items, created_at, updated_at]
+      properties:
+        order_id: { type: string, pattern: '^ord_[A-Za-z0-9]+$' }
+        customer_id: { type: string, pattern: '^usr_[A-Za-z0-9]+$' }
         status: { type: string, enum: [PENDING, CONFIRMED, CANCEL_REQUESTED, CANCELLED, COMPLETED, FAILED] }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
+        total_minor: { type: [integer, 'null'], minimum: 0, maximum: 1000000000 }
+        failure_code: { type: [string, 'null'], pattern: '^[A-Z][A-Z0-9_]{1,63}$' }
         items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
         created_at: { type: string, format: date-time }
-        updated_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: string, format: date-time }
     OrderItem:
       type: object
-      required: [product_id, quantity, unit_price_minor]
+      required: [product_id, quantity, unit_price_minor, line_total_minor]
       properties:
         product_id: { type: string, pattern: '^prd_[A-Za-z0-9]+$' }
-        quantity: { type: integer, minimum: 1 }
-        unit_price_minor: { type: integer, minimum: 0 }
+        quantity: { type: integer, minimum: 1, maximum: 1000 }
+        unit_price_minor: { type: [integer, 'null'], minimum: 0, maximum: 1000000000 }
+        line_total_minor: { type: [integer, 'null'], minimum: 0, maximum: 1000000000 }
+        quote_id: { type: [string, 'null'], pattern: '^qte_[A-Za-z0-9]+$' }
+        quote_version: { type: [integer, 'null'], minimum: 1 }
     OrderPage:
       type: object
       required: [items]

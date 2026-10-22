@@ -13,7 +13,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT '00000000-0000-0000-0000-000000000011'::uuid, id FROM permissions
 WHERE name IN ('identity:sessions:read', 'identity:sessions:write', 'orders:write:self')
 UNION ALL
-SELECT '00000000-0000-0000-0000-000000000012'::uuid, id FROM permissions
+SELECT '00000000-0000-0000-0000-000000000011'::uuid, id FROM permissions
 WHERE name IN ('identity:sessions:read', 'identity:sessions:write', 'orders:write:any')
 UNION ALL
 SELECT '00000000-0000-0000-0000-000000000013'::uuid, id FROM permissions
@@ -30,4 +30,3 @@ WHERE permission_id IN (
 );
 DELETE FROM permissions
 WHERE name IN ('identity:sessions:read', 'identity:sessions:write', 'orders:write:self', 'orders:write:any');
-

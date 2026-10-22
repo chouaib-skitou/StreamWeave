@@ -112,3 +112,27 @@ groups:
         annotations:
           summary: Gateway upstream failures are sustained
           description: One or more logical upstream dependencies are timing out or unavailable.
+
+  - name: streamweave-orders
+    rules:
+      - alert: OrdersServiceDown
+        expr: up{job="orders"} == 0
+        for: 30s
+        labels: { severity: critical, service: orders }
+        annotations:
+          summary: Orders service is unavailable
+          description: Prometheus cannot scrape the Orders API metrics endpoint.
+      - alert: OrdersHigh5xxRate
+        expr: sum(rate(orders_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(orders_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels: { severity: warning, service: orders }
+        annotations:
+          summary: Orders 5xx rate is above 5 percent
+          description: The Orders API is returning an elevated rate of server errors.
+      - alert: OrdersHighP95Latency
+        expr: histogram_quantile(0.95, sum by (le) (rate(orders_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning, service: orders }
+        annotations:
+          summary: Orders p95 latency is above one second
+          description: Orders request latency is elevated across one or more route classes.

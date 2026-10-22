@@ -1,0 +1,27 @@
+flowchart TD
+  A[Order PENDING] --> B{Inventory result}
+  B -->|Rejected| F[Order FAILED]
+  B -->|Reserved| C{Payment result}
+  C -->|Failed| R[Release inventory]
+  R --> F
+  C -->|Authorized| D{Fulfillment result}
+  D -->|Created| S[Order CONFIRMED]
+  D -->|Completed| C[Order COMPLETED]
+  D -->|Transient failure| T[Bounded retry]
+  T --> D
+  D -->|Retry budget exhausted| U[Refund payment]
+  U --> V[Release inventory]
+  V --> W[Order FAILED]
+  U -.->|Compensation failure| X[FAILED_REQUIRES_REVIEW + alert]
+  A -->|Cancel request| Q[CANCEL_REQUESTED]
+  Q --> I0{Inventory reserved?}
+  I0 -->|No| W2[Order CANCELLED]
+  I0 -->|Yes| Y{Payment authorized?}
+  Y -->|No| R2[Release inventory]
+  R2 --> W2
+  Y -->|Yes| Z[Refund payment]
+  Z --> V
+  V --> W2
+  S -->|Cancel request| E{Shipment cancellable?}
+  E -->|No| N[409 no state change]
+  E -->|Yes| Z

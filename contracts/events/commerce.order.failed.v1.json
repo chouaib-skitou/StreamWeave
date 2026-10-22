@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.streamweave.dev/commerce/order/failed.v1.json",
+  "title": "OrderFailed v1",
+  "allOf": [ { "$ref": "https://schemas.streamweave.dev/commerce/event-envelope.v1.json" }, { "properties": { "event_type": { "const": "commerce.order.failed.v1" }, "aggregate_type": { "const": "order" }, "producer": { "const": "orders" }, "data": { "type": "object", "required": ["order_id", "reason_code", "failure_class"], "properties": { "order_id": { "type": "string", "pattern": "^ord_[A-Za-z0-9]+$" }, "reason_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,31}$" }, "failure_class": { "type": "string", "enum": ["business", "dependency", "review_required"] } }, "additionalProperties": false } } } ]
+}

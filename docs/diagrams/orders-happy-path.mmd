@@ -1,0 +1,29 @@
+sequenceDiagram
+  participant C as Client
+  participant G as Gateway
+  participant O as Orders
+  participant DB as orders_db
+  participant K as Kafka
+  participant I as Inventory
+  participant P as Payments
+  participant F as Fulfillment
+  C->>G: POST /v1/orders + Idempotency-Key
+  G->>O: trusted actor context
+  O->>DB: order + Saga + idempotency + Outbox transaction
+  DB-->>O: committed
+  O-->>G: 202 PENDING
+  G-->>C: 202 PENDING
+  O->>K: ReserveInventory command
+  K->>I: command
+  I->>K: InventoryReserved
+  K->>O: fact + Inbox transaction
+  O->>K: AuthorizePayment command
+  K->>P: command
+  P->>K: PaymentAuthorized
+  K->>O: fact + confirm order
+  O->>K: CreateShipment command
+  K->>F: command
+  F->>K: ShipmentCreated
+  K->>O: fact + persist shipment reference
+  F->>K: ShipmentCompleted
+  K->>O: fact + complete order

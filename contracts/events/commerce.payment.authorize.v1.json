@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.streamweave.dev/commerce/payment/commands/authorize.v1.json",
+  "title": "AuthorizePayment command v1",
+  "allOf": [ { "$ref": "https://schemas.streamweave.dev/commerce/command-envelope.v1.json" }, { "properties": { "command_type": { "const": "commerce.payment.authorize.v1" }, "aggregate_type": { "const": "payment" }, "data": { "type": "object", "required": ["order_id", "amount_minor", "currency"], "properties": { "order_id": { "type": "string", "pattern": "^ord_[A-Za-z0-9]+$" }, "amount_minor": { "type": "integer", "minimum": 0 }, "currency": { "type": "string", "pattern": "^[A-Z]{3}$" } }, "additionalProperties": false } } } ]
+}

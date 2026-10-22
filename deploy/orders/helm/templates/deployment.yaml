@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "orders.fullname" . }}-api
+  labels:
+    {{- include "orders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "orders.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "orders.labels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: {{ include "orders.apiServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: orders
+          image: {{ include "orders.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: ORDERS_HTTP_ADDR, value: ":8080" }
+            - { name: ORDERS_ROLE, value: api }
+            - { name: ORDERS_ENVIRONMENT, value: {{ .Values.environment | quote }} }
+            - { name: ORDERS_LOG_LEVEL, value: {{ .Values.config.logLevel | quote }} }
+            - { name: ORDERS_OPENAPI_PATH, value: {{ .Values.config.openapiPath | quote }} }
+            - { name: ORDERS_MIGRATIONS_PATH, value: {{ .Values.config.migrationsPath | quote }} }
+            - { name: ORDERS_DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.databaseURLKey }} } } }
+            - { name: ORDERS_GATEWAY_JWKS_URL, value: {{ .Values.config.gatewayJWKSURL | quote }} }
+            - { name: ORDERS_GATEWAY_ISSUER, value: {{ .Values.config.gatewayIssuer | quote }} }
+            - { name: ORDERS_GATEWAY_AUDIENCE, value: {{ .Values.config.gatewayAudience | quote }} }
+            - { name: ORDERS_GATEWAY_SUBJECT, value: {{ .Values.config.gatewaySubject | quote }} }
+            - { name: ORDERS_INVENTORY_JWKS_URL, value: {{ .Values.config.inventoryJWKSURL | quote }} }
+            - { name: ORDERS_OTEL_ENDPOINT, value: {{ .Values.config.otelEndpoint | quote }} }
+            - { name: ORDERS_OTEL_INSECURE, value: {{ .Values.config.otelInsecure | quote }} }
+            - { name: ORDERS_CURSOR_SECRET, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.cursorSecretKey }} } } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 6 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "orders.fullname" . }}-relay
+  labels:
+    {{- include "orders.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "orders.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: relay
+  template:
+    metadata:
+      labels:
+        {{- include "orders.labels" . | nindent 8 }}
+        app.kubernetes.io/component: relay
+    spec:
+      serviceAccountName: {{ include "orders.relayServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: orders-relay
+          image: {{ include "orders.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [/orders-relay]
+          env:
+            - { name: ORDERS_ROLE, value: relay }
+            - { name: ORDERS_ENVIRONMENT, value: {{ .Values.environment | quote }} }
+            - { name: ORDERS_MIGRATIONS_PATH, value: {{ .Values.config.migrationsPath | quote }} }
+            - { name: ORDERS_DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.databaseURLKey }} } } }
+            - { name: ORDERS_KAFKA_BROKERS, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.kafkaBrokersKey }} } } }
+            - { name: ORDERS_KAFKA_TLS, value: "true" }
+            - { name: ORDERS_KAFKA_SASL_USERNAME, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.kafkaSASLUsernameKey }} } } }
+            - { name: ORDERS_KAFKA_SASL_PASSWORD, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.kafkaSASLPasswordKey }} } } }
+            - { name: ORDERS_INVENTORY_JWKS_URL, value: {{ .Values.config.inventoryJWKSURL | quote }} }
+            - { name: ORDERS_OTEL_ENDPOINT, value: {{ .Values.config.otelEndpoint | quote }} }
+            - { name: ORDERS_OTEL_INSECURE, value: {{ .Values.config.otelInsecure | quote }} }
+            - { name: ORDERS_CURSOR_SECRET, valueFrom: { secretKeyRef: { name: {{ .Values.secret.existingSecret }}, key: {{ .Values.secret.cursorSecretKey }} } } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe: { exec: { command: [/bin/sh, -c, 'kill -0 1'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 6 }
+          livenessProbe: { exec: { command: [/bin/sh, -c, 'kill -0 1'] }, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
