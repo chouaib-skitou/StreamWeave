@@ -1,0 +1,197 @@
+{
+  "info": {
+    "name": "StreamWeave",
+    "description": "Cross-service smoke and integration collection for StreamWeave. Use the StreamWeave - Local environment. Identity, Gateway, and Orders contain the runnable local flows; the remaining service folders reserve the shared structure for future services.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "identity_url", "value": "http://localhost:8080" },
+    { "key": "gateway_url", "value": "http://localhost:8081" },
+    { "key": "orders_url", "value": "http://localhost:8082" },
+    { "key": "mailhog_url", "value": "http://localhost:8025" },
+    { "key": "gateway_service_token", "value": "replace-with-development-service-token" },
+    { "key": "user_email", "value": "postman.streamweave@example.test" },
+    { "key": "user_password", "value": "correct horse battery staple" },
+    { "key": "new_password", "value": "new correct horse battery staple" },
+    { "key": "user_id", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "verification_token", "value": "" },
+    { "key": "reset_token", "value": "" },
+    { "key": "session_id", "value": "" },
+    { "key": "order_id", "value": "" },
+    { "key": "product_id", "value": "prd_postmandemo" },
+    { "key": "correlation_id", "value": "" },
+    { "key": "idempotency_key", "value": "streamweave-postman-create-001" },
+    { "key": "cancel_idempotency_key", "value": "streamweave-postman-cancel-001" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.variables.get('correlation_id')) pm.variables.set('correlation_id', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Variables",
+      "description": "The active environment is the source of runtime values. Keep secrets in Postman environment variables and never commit real credentials.",
+      "item": []
+    },
+    {
+      "name": "Identity Service",
+      "description": "Local Identity health, registration, email verification, authentication, and session smoke flow.",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": { "method": "GET", "header": [], "url": "{{identity_url}}/health/live" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Identity is alive', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Readiness",
+          "request": { "method": "GET", "header": [], "url": "{{identity_url}}/health/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Identity is ready', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Register user",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}" },
+            "url": "{{identity_url}}/.well-known/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('User created or already exists', () => pm.expect([201, 409]).to.include(pm.response.code));", "if (pm.response.code === 201) pm.environment.set('user_id', pm.response.json().id);"] } }]
+        },
+        {
+          "name": "Read verification email (MailHog)",
+          "request": { "method": "GET", "header": [], "url": "{{mailhog_url}}/api/v2/messages?limit=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog responded', () => pm.response.to.have.status(200));", "const email = pm.variables.replaceIn('{{user_email}}').toLowerCase();", "const message = (pm.response.json().items || []).find(item => JSON.stringify(item).toLowerCase().includes(email) && /verify|verification/i.test(JSON.stringify(item)));", "if (message) { const body = message.Content && message.Content.Body ? message.Content.Body : ''; const match = body.match(/[?&]token=([A-Za-z0-9_-]+)/i); if (match) pm.environment.set('verification_token', match[1]); }", "pm.test('Verification token found', () => pm.expect(pm.environment.get('verification_token')).to.be.a('string').and.not.empty);"] } }]
+        },
+        {
+          "name": "Confirm email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{verification_token}}\"\n}" },
+            "url": "{{identity_url}}/v1/auth/email-verification/confirm"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Email verified', () => pm.expect([204, 400]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}" },
+            "url": "{{identity_url}}/v1/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Login succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);", "const payload = JSON.parse(atob(body.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));", "pm.environment.set('user_id', payload.sub);", "pm.environment.set('session_id', payload.sid || '');"] } }]
+        },
+        {
+          "name": "Refresh session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}" },
+            "url": "{{identity_url}}/v1/auth/refresh"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Refresh succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);"] } }]
+        },
+        {
+          "name": "List sessions",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{identity_url}}/v1/auth/sessions" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Sessions returned', () => pm.response.to.have.status(200));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Gateway Service",
+      "description": "Public application entry point. Gateway validates the user token and routes the order flow to Orders.",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": { "method": "GET", "header": [], "url": "{{gateway_url}}/health/live" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Gateway is alive', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Readiness",
+          "request": { "method": "GET", "header": [], "url": "{{gateway_url}}/health/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Gateway is ready', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{idempotency_key}}" }, { "key": "X-Request-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customer_id\": \"{{user_id}}\",\n  \"currency\": \"EUR\",\n  \"items\": [{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 1\n  }]\n}" },
+            "url": "{{gateway_url}}/v1/orders"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order accepted', () => pm.response.to.have.status(202));", "pm.environment.set('order_id', pm.response.json().order_id);"] } }]
+        },
+        {
+          "name": "Get order",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{gateway_url}}/v1/orders/{{order_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order returned', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "List orders",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{gateway_url}}/v1/orders?limit=25" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order list returned', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Cancel order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{cancel_idempotency_key}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason_code\": \"CUSTOMER_REQUESTED\"\n}" },
+            "url": "{{gateway_url}}/v1/orders/{{order_id}}/cancel"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Cancellation accepted or already conflicted', () => pm.expect([202, 409]).to.include(pm.response.code));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Orders Service",
+      "description": "Internal Orders diagnostics and contract checks. Business calls require the Gateway service token and trusted actor headers.",
+      "item": [
+        {
+          "name": "Readiness",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/health/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders is ready', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Swagger UI",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/v1/docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders Swagger UI available', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "OpenAPI contract",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/v1/openapi.yaml" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders OpenAPI contract available', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Metrics",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/metrics" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders metrics available', () => pm.response.to.have.status(200));"] } }]
+        }
+      ]
+    },
+    { "name": "Inventory Service", "description": "Reserved for the Inventory service collection.", "item": [] },
+    { "name": "Payments Service", "description": "Reserved for the Payments service collection.", "item": [] },
+    { "name": "Fulfillment Service", "description": "Reserved for the Fulfillment service collection.", "item": [] },
+    { "name": "Notifications Service", "description": "Reserved for the Notifications service collection.", "item": [] },
+    {
+      "name": "Cleanup",
+      "description": "Run after all service scenarios so the shared access token stays valid during the collection run.",
+      "item": [{
+        "name": "Logout",
+        "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "X-Correlation-ID", "value": "{{correlation_id}}" }], "url": "{{identity_url}}/v1/auth/logout" },
+        "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Logout completed', () => pm.response.to.have.status(204));"] } }]
+      }]
+    }
+  ]
+}

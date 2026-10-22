@@ -5,9 +5,9 @@ purpose: build-substrate
 altitude: feature
 paradigm: Clean / Hexagonal Architecture
 scope: Order aggregate, asynchronous lifecycle, durable Saga, REST API, Kafka integration, and recovery
-status: documentation-complete
+status: implementation-audited
 created: 2026-09-05
-updated: 2026-09-05
+updated: 2026-10-22
 sources:
   - 01_event_driven_ecommerce_order_management_platform.md
   - docs/brief.md
@@ -67,6 +67,8 @@ Orders may store external references (`product_id`, `reservation_id`, `payment_i
 - Every consumed message is Inbox-deduplicated and every downstream command has a deterministic operation ID.
 - Aggregate version and Saga step guard transitions; terminal public states cannot regress.
 - A timeout after a remote success is resolved by event reconciliation, never blind re-execution.
+- Cancellation compensation is durable: the order records whether inventory was released and
+  payment was refunded, and terminal cancellation is emitted only after all required facts.
 
 ## Consistency
 
@@ -87,4 +89,9 @@ Orders runs non-root with a read-only filesystem, dropped Linux capabilities, pi
 
 ## Deferred
 
-The final cancellation rule after shipment dispatch and capacity-tuned SLOs remain owned by future service documents. Inventory must implement the quote contract in `orders-pricing-boundary.md` before the Orders integration story is accepted. None changes the Orders ownership or transaction invariants above.
+The final cancellation rule after shipment dispatch, saga-step repair tooling, full relay metrics,
+and capacity-tuned SLOs remain owned by future service documents. Inventory must implement the
+quote contract in `orders-pricing-boundary.md` before the Orders integration story is accepted.
+`commerce.payment.refund_failed.v1` remains a quarantined/review path until the operator repair
+workflow is implemented; it must never be treated as a successful compensation. None of these
+deferred items changes the Orders ownership or transaction invariants above.

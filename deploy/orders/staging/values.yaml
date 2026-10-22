@@ -1,0 +1,15 @@
+environment: staging
+image:
+  pullPolicy: Always
+  requireDigest: true
+config:
+  gatewayJWKSURL: https://identity.staging.streamweave.example/.well-known/jwks.json
+  gatewayIssuer: https://identity.staging.streamweave.example
+  inventoryJWKSURL: https://inventory.staging.streamweave.example/.well-known/jwks.json
+  kafkaBrokers: kafka.staging.streamweave.example:9093
+  otelEndpoint: otel-collector.monitoring.svc:4317
+  otelInsecure: false
+secret:
+  existingSecret: orders-staging-external
+networkPolicy:
+  externalTLS: true

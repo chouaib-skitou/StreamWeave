@@ -1,0 +1,18 @@
+environment: production
+replicaCount: 3
+image:
+  pullPolicy: IfNotPresent
+  requireDigest: true
+config:
+  gatewayJWKSURL: https://identity.streamweave.example/.well-known/jwks.json
+  gatewayIssuer: https://identity.streamweave.example
+  inventoryJWKSURL: https://inventory.streamweave.example/.well-known/jwks.json
+  kafkaBrokers: kafka.streamweave.example:9093
+  otelEndpoint: otel-collector.monitoring.svc:4317
+  otelInsecure: false
+secret:
+  existingSecret: orders-production-external
+networkPolicy:
+  externalTLS: true
+pdb:
+  minAvailable: 2

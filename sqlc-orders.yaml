@@ -1,0 +1,13 @@
+version: '2'
+sql:
+  - engine: 'postgresql'
+    schema: 'database/orders/migrations'
+    queries: 'database/orders/queries'
+    gen:
+      go:
+        package: 'generated'
+        out: 'apps/orders/internal/adapters/outbound/postgres/generated'
+        sql_package: 'database/sql'
+        emit_json_tags: true
+        emit_interface: true
+        emit_empty_slices: true
