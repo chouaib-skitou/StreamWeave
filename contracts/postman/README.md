@@ -1,5 +1,27 @@
 # StreamWeave Postman Tests
 
+## Unified collection
+
+The recommended entry point is the shared collection and environment:
+
+1. `streamweave.postman_collection.json`
+2. `streamweave.local.postman_environment.json`
+
+The collection is organized as `Variables`, `Identity Service`, `Gateway
+Service`, `Orders Service`, `Inventory Service`, `Payments Service`,
+`Fulfillment Service`, and `Notifications Service`. The last four folders are
+reserved for their service contracts and are intentionally empty until those
+services are implemented. Runtime values and tokens are stored in the active
+Postman environment; real credentials must never be committed.
+
+Run the Identity flow first, then the Gateway order flow, and finally the
+Orders contract checks. The collection extracts access and refresh tokens from
+the login response and stores the created order identifier for subsequent
+requests.
+
+The service-specific collections below remain available for exhaustive route
+coverage and advanced RBAC, password-reset, and internal-contract scenarios.
+
 ## Identity Service
 
 Import both files in this directory:
