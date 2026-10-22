@@ -1,4 +1,6 @@
-# Identity Service Postman Tests
+# StreamWeave Postman Tests
+
+## Identity Service
 
 Import both files in this directory:
 
@@ -40,3 +42,19 @@ Local uses MailHog as a real SMTP server. Open `http://localhost:8025` to
 inspect the rendered HTML and text versions. Staging and production use the
 SMTP configurations documented in `deploy/identity/staging` and
 `deploy/identity/production`.
+
+## Orders Service
+
+Import both files:
+
+1. `orders-service.postman_collection.json`
+2. `orders.local.postman_environment.json`
+
+The collection covers the three local backend health checks, Gateway setup and
+authentication, every Orders operation route, the public Gateway order flow,
+and the internal Orders contract. Set `gateway_service_token` to the same
+local value as `GATEWAY_SERVICE_TOKEN` in `monitoring/local/.env`. Run the
+`Local setup` folder first. It creates a development customer, extracts the
+real verification token from MailHog, verifies the email, and stores the access
+and refresh tokens for subsequent requests. The demo account is local-only and
+is not a production seed.

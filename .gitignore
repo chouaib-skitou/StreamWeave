@@ -22,7 +22,10 @@ kubeconfig*
 /coverage
 /coverage.out
 /identity
+/gateway
 /orders
+/orders-relay
+/orders-migrate
 /foo
 /foo-bar
 /*-coverage.out

@@ -36,19 +36,21 @@ type Item struct {
 }
 
 type Order struct {
-	ID            string
-	CustomerID    string
-	Currency      string
-	Items         []Item
-	TotalMinor    *int64
-	ReservationID *string
-	PaymentID     *string
-	ShipmentID    *string
-	FailureCode   *string
-	Status        Status
-	Version       uint64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                string
+	CustomerID        string
+	Currency          string
+	Items             []Item
+	TotalMinor        *int64
+	ReservationID     *string
+	PaymentID         *string
+	ShipmentID        *string
+	FailureCode       *string
+	InventoryReleased bool
+	PaymentRefunded   bool
+	Status            Status
+	Version           uint64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 var (

@@ -1,6 +1,7 @@
 -- name: GetOrder :one
 SELECT id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-       payment_id, shipment_id, aggregate_version, created_at, updated_at
+       payment_id, shipment_id, inventory_released, payment_refunded,
+       aggregate_version, created_at, updated_at
 FROM orders WHERE id = $1;
 
 -- name: GetOrderItems :many
@@ -10,7 +11,8 @@ FROM order_items WHERE order_id = $1 ORDER BY line_number;
 
 -- name: ListOrders :many
 SELECT id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-       payment_id, shipment_id, aggregate_version, created_at, updated_at
+       payment_id, shipment_id, inventory_released, payment_refunded,
+       aggregate_version, created_at, updated_at
 FROM orders
 WHERE customer_id = $1
   AND ($2::text = '' OR status = $2)
@@ -31,12 +33,23 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 UPDATE orders SET status = 'CANCEL_REQUESTED', aggregate_version = aggregate_version + 1, updated_at = $3
 WHERE id = $1 AND aggregate_version = $2 AND status IN ('PENDING', 'CONFIRMED')
 RETURNING id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-          payment_id, shipment_id, aggregate_version, created_at, updated_at;
+          payment_id, shipment_id, inventory_released, payment_refunded,
+          aggregate_version, created_at, updated_at;
 
 -- name: UpdateOrderWorkflowState :execrows
 UPDATE orders SET status = $2, failure_code = COALESCE($3, failure_code), reservation_id = COALESCE($4, reservation_id), payment_id = COALESCE($5, payment_id),
        shipment_id = COALESCE($6, shipment_id), total_minor = COALESCE($7, total_minor), aggregate_version = aggregate_version + 1, updated_at = $8
 WHERE id = $1 AND aggregate_version = $9;
+
+-- name: MarkInventoryReleased :execrows
+UPDATE orders
+SET inventory_released = true, aggregate_version = aggregate_version + 1, updated_at = $2
+WHERE id = $1 AND aggregate_version = $3 AND NOT inventory_released;
+
+-- name: MarkPaymentRefunded :execrows
+UPDATE orders
+SET payment_refunded = true, aggregate_version = aggregate_version + 1, updated_at = $2
+WHERE id = $1 AND aggregate_version = $3 AND NOT payment_refunded;
 
 -- name: UpdateOrderItemQuote :exec
 UPDATE order_items SET unit_price_minor = $3, line_total_minor = $4, quote_id = $5, quote_version = $6
@@ -45,6 +58,14 @@ WHERE order_id = $1 AND product_id = $2;
 -- name: InsertSaga :exec
 INSERT INTO saga_instances (id, order_id, phase, version, created_at, updated_at)
 VALUES ($1, $2, $3, 1, $4, $4);
+
+-- name: GetSagaByOrderID :one
+SELECT id, order_id, phase, version, failure_class, created_at, updated_at
+FROM saga_instances WHERE order_id = $1;
+
+-- name: UpdateSagaPhase :exec
+UPDATE saga_instances SET phase = $2, version = version + 1, updated_at = $3
+WHERE id = $1;
 
 -- name: InsertIdempotency :execrows
 INSERT INTO idempotency_records (actor_id, operation, key, request_hash, status, resource_id, response_status, response_body, created_at, expires_at)

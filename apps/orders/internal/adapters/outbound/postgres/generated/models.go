@@ -42,18 +42,20 @@ type InboxMessage struct {
 }
 
 type Order struct {
-	ID               string         `json:"id"`
-	CustomerID       string         `json:"customer_id"`
-	Currency         string         `json:"currency"`
-	TotalMinor       sql.NullInt64  `json:"total_minor"`
-	Status           string         `json:"status"`
-	FailureCode      sql.NullString `json:"failure_code"`
-	ReservationID    sql.NullString `json:"reservation_id"`
-	PaymentID        sql.NullString `json:"payment_id"`
-	ShipmentID       sql.NullString `json:"shipment_id"`
-	AggregateVersion int64          `json:"aggregate_version"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	ID                string         `json:"id"`
+	CustomerID        string         `json:"customer_id"`
+	Currency          string         `json:"currency"`
+	TotalMinor        sql.NullInt64  `json:"total_minor"`
+	Status            string         `json:"status"`
+	FailureCode       sql.NullString `json:"failure_code"`
+	ReservationID     sql.NullString `json:"reservation_id"`
+	PaymentID         sql.NullString `json:"payment_id"`
+	ShipmentID        sql.NullString `json:"shipment_id"`
+	AggregateVersion  int64          `json:"aggregate_version"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	InventoryReleased bool           `json:"inventory_released"`
+	PaymentRefunded   bool           `json:"payment_refunded"`
 }
 
 type OrderItem struct {

@@ -17,6 +17,8 @@ Kafka provides at-least-once eventual consistency. The system does not claim dis
 | Relay crash after publish | none | duplicate safe through Inbox |
 | Inventory rejects | order eventually `FAILED` | no payment command |
 | Payment fails | order `FAILED` | release inventory command |
+| Cancellation races with a late reservation/authorization | order remains `CANCEL_REQUESTED` | release/refund commands use the original Saga identity; `CANCELLED` waits for required facts |
+| Refund/release fact arrives twice | no duplicate public transition | Inbox identity and durable completion flags make the operation idempotent |
 | Payment timeout | `PENDING` until fact/reconciliation | same operation ID |
 | Fulfillment fails | retry, then refund/release | `FAILED` or review state |
 | Redis unavailable | configured protected routes fail closed | correctness unchanged |

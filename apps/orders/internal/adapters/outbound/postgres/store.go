@@ -200,25 +200,34 @@ func (s *Store) RequestCancellation(ctx context.Context, actorID, orderID, opera
 	if err != nil {
 		return domain.Order{}, mapError(err)
 	}
+	saga, err := q.GetSagaByOrderID(ctx, orderID)
+	if err != nil {
+		return domain.Order{}, mapError(err)
+	}
+	sagaID := saga.ID
+	eventID := "evt_" + uuid.NewString()
 	accepted := acceptedResponse{OrderID: row.ID, Status: row.Status, CreatedAt: row.UpdatedAt}
 	body, _ := json.Marshal(accepted)
 	if err = q.UpdateIdempotencyResponse(ctx, generated.UpdateIdempotencyResponseParams{ActorID: actorID, Operation: operation, Key: key, ResourceID: sql.NullString{String: row.ID, Valid: true}, ResponseBody: pqtype.NullRawMessage{RawMessage: body, Valid: true}}); err != nil {
 		return domain.Order{}, mapError(err)
 	}
-	payload, err := eventPayload("commerce.order.cancellation_requested.v1", rowToOrder(row), "sag_"+uuid.NewString(), "cmd_"+uuid.NewString(), "ord_"+strings.TrimPrefix(orderID, "ord_")+":cancel", reason)
+	payload, err := eventPayloadWithID(eventID, "commerce.order.cancellation_requested.v1", cancellationRowToOrder(row), sagaID, "cmd_"+uuid.NewString(), "ord_"+strings.TrimPrefix(orderID, "ord_")+":cancel", reason)
 	if err != nil {
 		return domain.Order{}, err
 	}
 	if err := q.InsertOutbox(ctx, generated.InsertOutboxParams{ID: uuid.New(), Topic: "commerce.order.events.v1", PartitionKey: orderID, MessageType: "commerce.order.cancellation_requested.v1", AggregateType: "order", AggregateID: orderID, Payload: payload, Headers: []byte(`{"reason_code":"` + reason + `"}`), CreatedAt: at}); err != nil {
 		return domain.Order{}, mapError(err)
 	}
-	if err := s.insertCompensationCommands(ctx, q, rowToOrder(row), "sag_"+uuid.NewString(), "evt_"+uuid.NewString(), "commerce.order.cancellation_requested.v1", at); err != nil {
+	if err := q.UpdateSagaPhase(ctx, generated.UpdateSagaPhaseParams{ID: sagaID, Phase: "CANCELLATION_REQUESTED", UpdatedAt: at}); err != nil {
+		return domain.Order{}, mapError(err)
+	}
+	if err := s.insertCompensationCommands(ctx, q, cancellationRowToOrder(row), sagaID, eventID, "commerce.order.cancellation_requested.v1", at); err != nil {
 		return domain.Order{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.Order{}, mapError(err)
 	}
-	return rowToOrder(row), nil
+	return cancellationRowToOrder(row), nil
 }
 
 func (s *Store) PendingOutbox(ctx context.Context, limit int) ([]OutboxEvent, error) {
@@ -354,7 +363,30 @@ func (s *Store) ProcessFact(ctx context.Context, consumerGroup string, payload [
 		if err := s.applyInventoryReserved(ctx, q, order, envelope, now); err != nil {
 			return err
 		}
+	case "commerce.inventory.released.v1":
+		if err := s.applyInventoryReleased(ctx, q, order, envelope, now); err != nil {
+			return err
+		}
+	case "commerce.payment.refunded.v1":
+		if err := s.applyPaymentRefunded(ctx, q, order, envelope, now); err != nil {
+			return err
+		}
 	case "commerce.inventory.rejected.v1", "commerce.payment.failed.v1", "commerce.fulfillment.failed.v1":
+		if order.Status == domain.StatusCancelReq {
+			if envelope.EventType == "commerce.inventory.rejected.v1" {
+				if err := s.markInventoryReleased(ctx, q, &order, now); err != nil {
+					return err
+				}
+			} else if envelope.EventType == "commerce.payment.failed.v1" {
+				if err := s.markPaymentRefunded(ctx, q, &order, now); err != nil {
+					return err
+				}
+			}
+			if err := s.insertCompensationCommands(ctx, q, order, envelope.SagaID, envelope.EventID, envelope.EventType, now); err != nil {
+				return err
+			}
+			return s.maybeCompleteCancellation(ctx, q, order, envelope.SagaID, envelope.EventID, now)
+		}
 		if order.Status.IsTerminal() {
 			break
 		}
@@ -432,7 +464,25 @@ func (s *Store) insertCompensationCommands(ctx context.Context, q *generated.Que
 }
 
 func (s *Store) applyInventoryReserved(ctx context.Context, q *generated.Queries, order domain.Order, envelope factEnvelope, now time.Time) error {
-	if order.Status.IsTerminal() || order.Status != domain.StatusPending {
+	if order.Status.IsTerminal() {
+		return nil
+	}
+	reservationID := rawString(envelope.Data["reservation_id"])
+	if !domain.ValidReservationID(reservationID) {
+		return fmt.Errorf("%w: reservation reference is invalid", app.ErrConflict)
+	}
+	if envelope.OperationID != order.ID+":reserve" {
+		return fmt.Errorf("%w: reservation operation mismatch", app.ErrConflict)
+	}
+	if order.Status == domain.StatusCancelReq {
+		order.ReservationID = &reservationID
+		if err := s.updateWorkflow(ctx, q, order, domain.StatusCancelReq, "", reservationID, "", "", order.TotalMinor, now); err != nil {
+			return err
+		}
+		order.Version++
+		return s.insertCompensationCommands(ctx, q, order, envelope.SagaID, envelope.EventID, "commerce.order.cancellation_requested.v1", now)
+	}
+	if order.Status != domain.StatusPending {
 		return nil
 	}
 	expectedVersion := order.Version
@@ -448,7 +498,6 @@ func (s *Store) applyInventoryReserved(ctx context.Context, q *generated.Queries
 	if envelope.OperationID != order.ID+":reserve" {
 		return fmt.Errorf("%w: reservation operation mismatch", app.ErrConflict)
 	}
-	reservationID := rawString(envelope.Data["reservation_id"])
 	quoteExpiresAt := rawString(envelope.Data["quote_expires_at"])
 	quote := signedQuote{OrderID: order.ID, ReservationID: reservationID, QuoteID: quoteID, QuoteVersion: quoteVersion, Currency: currency, QuoteExpiresAt: quoteExpiresAt}
 	var lines []quoteItem
@@ -490,10 +539,6 @@ func (s *Store) applyInventoryReserved(ctx context.Context, q *generated.Queries
 			return mapError(err)
 		}
 	}
-	reservationID = rawString(envelope.Data["reservation_id"])
-	if !strings.HasPrefix(reservationID, "res_") {
-		return fmt.Errorf("%w: reservation reference is invalid", app.ErrConflict)
-	}
 	order.Version = expectedVersion
 	if err := s.updateWorkflow(ctx, q, order, domain.StatusPending, "", reservationID, "", "", order.TotalMinor, now); err != nil {
 		return err
@@ -516,8 +561,16 @@ func (s *Store) applyPaymentAuthorized(ctx context.Context, q *generated.Queries
 		return fmt.Errorf("%w: payment amount mismatch", app.ErrConflict)
 	}
 	paymentID := rawString(envelope.Data["payment_id"])
-	if paymentID == "" {
+	if !domain.ValidPaymentID(paymentID) {
 		return fmt.Errorf("%w: payment reference missing", app.ErrConflict)
+	}
+	if order.Status == domain.StatusCancelReq {
+		order.PaymentID = &paymentID
+		if err := s.updateWorkflow(ctx, q, order, domain.StatusCancelReq, "", "", paymentID, "", order.TotalMinor, now); err != nil {
+			return err
+		}
+		order.Version++
+		return s.insertCompensationCommands(ctx, q, order, envelope.SagaID, envelope.EventID, "commerce.order.cancellation_requested.v1", now)
 	}
 	if err := s.updateWorkflow(ctx, q, order, domain.StatusConfirmed, "", "", paymentID, "", order.TotalMinor, now); err != nil {
 		return err
@@ -543,6 +596,87 @@ func (s *Store) applyPaymentAuthorized(ctx context.Context, q *generated.Queries
 	return insertOutbox(ctx, q, "commerce.fulfillment.create.v1", order.ID, command, now)
 }
 
+func (s *Store) applyInventoryReleased(ctx context.Context, q *generated.Queries, order domain.Order, envelope factEnvelope, now time.Time) error {
+	if order.ReservationID == nil || rawString(envelope.Data["reservation_id"]) != *order.ReservationID {
+		return fmt.Errorf("%w: reservation reference mismatch", app.ErrConflict)
+	}
+	if order.Status.IsTerminal() && order.InventoryReleased {
+		return nil
+	}
+	if err := s.markInventoryReleased(ctx, q, &order, now); err != nil {
+		return err
+	}
+	return s.maybeCompleteCancellation(ctx, q, order, envelope.SagaID, envelope.EventID, now)
+}
+
+func (s *Store) applyPaymentRefunded(ctx context.Context, q *generated.Queries, order domain.Order, envelope factEnvelope, now time.Time) error {
+	if order.PaymentID == nil || rawString(envelope.Data["payment_id"]) != *order.PaymentID {
+		return fmt.Errorf("%w: payment reference mismatch", app.ErrConflict)
+	}
+	if order.Status.IsTerminal() && order.PaymentRefunded {
+		return nil
+	}
+	if err := s.markPaymentRefunded(ctx, q, &order, now); err != nil {
+		return err
+	}
+	return s.maybeCompleteCancellation(ctx, q, order, envelope.SagaID, envelope.EventID, now)
+}
+
+func (s *Store) markInventoryReleased(ctx context.Context, q *generated.Queries, order *domain.Order, now time.Time) error {
+	if order.InventoryReleased {
+		return nil
+	}
+	rows, err := q.MarkInventoryReleased(ctx, generated.MarkInventoryReleasedParams{ID: order.ID, UpdatedAt: now, AggregateVersion: int64(order.Version)})
+	if err != nil {
+		return mapError(err)
+	}
+	if rows != 1 {
+		return app.ErrConflict
+	}
+	order.InventoryReleased = true
+	order.Version++
+	order.UpdatedAt = now
+	return nil
+}
+
+func (s *Store) markPaymentRefunded(ctx context.Context, q *generated.Queries, order *domain.Order, now time.Time) error {
+	if order.PaymentRefunded {
+		return nil
+	}
+	rows, err := q.MarkPaymentRefunded(ctx, generated.MarkPaymentRefundedParams{ID: order.ID, UpdatedAt: now, AggregateVersion: int64(order.Version)})
+	if err != nil {
+		return mapError(err)
+	}
+	if rows != 1 {
+		return app.ErrConflict
+	}
+	order.PaymentRefunded = true
+	order.Version++
+	order.UpdatedAt = now
+	return nil
+}
+
+func (s *Store) maybeCompleteCancellation(ctx context.Context, q *generated.Queries, order domain.Order, sagaID, causation string, now time.Time) error {
+	if order.Status != domain.StatusCancelReq {
+		return nil
+	}
+	if (order.ReservationID != nil && !order.InventoryReleased) || (order.PaymentID != nil && !order.PaymentRefunded) {
+		return nil
+	}
+	if err := s.updateWorkflow(ctx, q, order, domain.StatusCancelled, "", "", "", "", order.TotalMinor, now); err != nil {
+		return err
+	}
+	order.Version++
+	payload, err := eventPayloadFor("commerce.order.cancelled.v1", order, sagaID, causation, order.ID+":cancelled", map[string]any{"order_id": order.ID, "reason_code": "CUSTOMER_REQUESTED"})
+	if err != nil {
+		return err
+	}
+	if err := insertOutbox(ctx, q, "commerce.order.cancelled.v1", order.ID, payload, now); err != nil {
+		return err
+	}
+	return mapError(q.UpdateSagaPhase(ctx, generated.UpdateSagaPhaseParams{ID: sagaID, Phase: "CANCELLED", UpdatedAt: now}))
+}
+
 func (s *Store) updateWorkflow(ctx context.Context, q *generated.Queries, order domain.Order, status domain.Status, failure, reservation, payment, shipment string, total *int64, now time.Time) error {
 	return s.updateWorkflowAtVersion(ctx, q, order, status, failure, reservation, payment, shipment, total, order.Version, now)
 }
@@ -563,9 +697,9 @@ func (s *Store) updateWorkflowAtVersion(ctx context.Context, q *generated.Querie
 
 func validFactIdentity(envelope factEnvelope) bool {
 	switch envelope.EventType {
-	case "commerce.inventory.reserved.v1", "commerce.inventory.rejected.v1":
+	case "commerce.inventory.reserved.v1", "commerce.inventory.rejected.v1", "commerce.inventory.released.v1":
 		return envelope.AggregateType == "inventory" && envelope.Producer == "inventory"
-	case "commerce.payment.authorized.v1", "commerce.payment.failed.v1":
+	case "commerce.payment.authorized.v1", "commerce.payment.failed.v1", "commerce.payment.refunded.v1":
 		return envelope.AggregateType == "payment" && envelope.Producer == "payments"
 	case "commerce.fulfillment.completed.v1", "commerce.fulfillment.failed.v1":
 		return envelope.AggregateType == "fulfillment" && envelope.Producer == "fulfillment"
@@ -739,15 +873,21 @@ func loadOrder(ctx context.Context, q *generated.Queries, id string) (domain.Ord
 	if err != nil {
 		return domain.Order{}, mapError(err)
 	}
-	result := rowToOrder(row)
+	result := getOrderRowToOrder(row)
 	result.Items = make([]domain.Item, 0, len(items))
 	for _, item := range items {
 		result.Items = append(result.Items, domain.Item{ProductID: item.ProductID, Quantity: item.Quantity, UnitPriceMinor: int64Ptr(item.UnitPriceMinor), LineTotalMinor: int64Ptr(item.LineTotalMinor), QuoteID: stringPtr(item.QuoteID), QuoteVersion: int64Ptr(item.QuoteVersion)})
 	}
 	return result, nil
 }
-func rowToOrder(row generated.Order) domain.Order {
-	return domain.Order{ID: row.ID, CustomerID: row.CustomerID, Currency: row.Currency, TotalMinor: int64Ptr(row.TotalMinor), ReservationID: stringPtr(row.ReservationID), PaymentID: stringPtr(row.PaymentID), ShipmentID: stringPtr(row.ShipmentID), FailureCode: stringPtr(row.FailureCode), Status: domain.Status(row.Status), Version: uint64(row.AggregateVersion), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+func orderFromFields(id, customerID, currency string, totalMinor sql.NullInt64, reservationID, paymentID, shipmentID, failureCode sql.NullString, inventoryReleased, paymentRefunded bool, status string, version int64, createdAt, updatedAt time.Time) domain.Order {
+	return domain.Order{ID: id, CustomerID: customerID, Currency: currency, TotalMinor: int64Ptr(totalMinor), ReservationID: stringPtr(reservationID), PaymentID: stringPtr(paymentID), ShipmentID: stringPtr(shipmentID), FailureCode: stringPtr(failureCode), InventoryReleased: inventoryReleased, PaymentRefunded: paymentRefunded, Status: domain.Status(status), Version: uint64(version), CreatedAt: createdAt, UpdatedAt: updatedAt}
+}
+func getOrderRowToOrder(row generated.GetOrderRow) domain.Order {
+	return orderFromFields(row.ID, row.CustomerID, row.Currency, row.TotalMinor, row.ReservationID, row.PaymentID, row.ShipmentID, row.FailureCode, row.InventoryReleased, row.PaymentRefunded, row.Status, row.AggregateVersion, row.CreatedAt, row.UpdatedAt)
+}
+func cancellationRowToOrder(row generated.UpdateOrderCancellationRow) domain.Order {
+	return orderFromFields(row.ID, row.CustomerID, row.Currency, row.TotalMinor, row.ReservationID, row.PaymentID, row.ShipmentID, row.FailureCode, row.InventoryReleased, row.PaymentRefunded, row.Status, row.AggregateVersion, row.CreatedAt, row.UpdatedAt)
 }
 func int64Ptr(value sql.NullInt64) *int64 {
 	if !value.Valid {

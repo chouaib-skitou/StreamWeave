@@ -42,7 +42,10 @@ func (a *GatewayAuthenticator) Authenticate(ctx context.Context, headers http.He
 		return apporders.Actor{}, apporders.ErrUnauthorized
 	}
 	raw := strings.TrimSpace(strings.TrimPrefix(values[0], "Bearer "))
-	if raw == "" || (a.staticToken != "" && raw == a.staticToken) {
+	if raw == "" {
+		return apporders.Actor{}, apporders.ErrUnauthorized
+	}
+	if a.staticToken != "" && raw == a.staticToken {
 		return trustedActor(headers)
 	}
 	if a.staticToken != "" {

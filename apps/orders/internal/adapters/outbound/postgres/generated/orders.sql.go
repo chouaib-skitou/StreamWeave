@@ -170,13 +170,31 @@ func (q *Queries) GetInbox(ctx context.Context, arg GetInboxParams) (InboxMessag
 
 const getOrder = `-- name: GetOrder :one
 SELECT id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-       payment_id, shipment_id, aggregate_version, created_at, updated_at
+       payment_id, shipment_id, inventory_released, payment_refunded,
+       aggregate_version, created_at, updated_at
 FROM orders WHERE id = $1
 `
 
-func (q *Queries) GetOrder(ctx context.Context, id string) (Order, error) {
+type GetOrderRow struct {
+	ID                string         `json:"id"`
+	CustomerID        string         `json:"customer_id"`
+	Currency          string         `json:"currency"`
+	TotalMinor        sql.NullInt64  `json:"total_minor"`
+	Status            string         `json:"status"`
+	FailureCode       sql.NullString `json:"failure_code"`
+	ReservationID     sql.NullString `json:"reservation_id"`
+	PaymentID         sql.NullString `json:"payment_id"`
+	ShipmentID        sql.NullString `json:"shipment_id"`
+	InventoryReleased bool           `json:"inventory_released"`
+	PaymentRefunded   bool           `json:"payment_refunded"`
+	AggregateVersion  int64          `json:"aggregate_version"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) GetOrder(ctx context.Context, id string) (GetOrderRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrder, id)
-	var i Order
+	var i GetOrderRow
 	err := row.Scan(
 		&i.ID,
 		&i.CustomerID,
@@ -187,6 +205,8 @@ func (q *Queries) GetOrder(ctx context.Context, id string) (Order, error) {
 		&i.ReservationID,
 		&i.PaymentID,
 		&i.ShipmentID,
+		&i.InventoryReleased,
+		&i.PaymentRefunded,
 		&i.AggregateVersion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -230,6 +250,26 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID string) ([]OrderIte
 		return nil, err
 	}
 	return items, nil
+}
+
+const getSagaByOrderID = `-- name: GetSagaByOrderID :one
+SELECT id, order_id, phase, version, failure_class, created_at, updated_at
+FROM saga_instances WHERE order_id = $1
+`
+
+func (q *Queries) GetSagaByOrderID(ctx context.Context, orderID string) (SagaInstance, error) {
+	row := q.db.QueryRowContext(ctx, getSagaByOrderID, orderID)
+	var i SagaInstance
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.Phase,
+		&i.Version,
+		&i.FailureClass,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const insertIdempotency = `-- name: InsertIdempotency :execrows
@@ -414,7 +454,8 @@ func (q *Queries) InsertSaga(ctx context.Context, arg InsertSagaParams) error {
 
 const listOrders = `-- name: ListOrders :many
 SELECT id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-       payment_id, shipment_id, aggregate_version, created_at, updated_at
+       payment_id, shipment_id, inventory_released, payment_refunded,
+       aggregate_version, created_at, updated_at
 FROM orders
 WHERE customer_id = $1
   AND ($2::text = '' OR status = $2)
@@ -432,7 +473,24 @@ type ListOrdersParams struct {
 	PageSize        int32          `json:"page_size"`
 }
 
-func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
+type ListOrdersRow struct {
+	ID                string         `json:"id"`
+	CustomerID        string         `json:"customer_id"`
+	Currency          string         `json:"currency"`
+	TotalMinor        sql.NullInt64  `json:"total_minor"`
+	Status            string         `json:"status"`
+	FailureCode       sql.NullString `json:"failure_code"`
+	ReservationID     sql.NullString `json:"reservation_id"`
+	PaymentID         sql.NullString `json:"payment_id"`
+	ShipmentID        sql.NullString `json:"shipment_id"`
+	InventoryReleased bool           `json:"inventory_released"`
+	PaymentRefunded   bool           `json:"payment_refunded"`
+	AggregateVersion  int64          `json:"aggregate_version"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrders,
 		arg.CustomerID,
 		arg.Column2,
@@ -444,9 +502,9 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Order{}
+	items := []ListOrdersRow{}
 	for rows.Next() {
-		var i Order
+		var i ListOrdersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CustomerID,
@@ -457,6 +515,8 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 			&i.ReservationID,
 			&i.PaymentID,
 			&i.ShipmentID,
+			&i.InventoryReleased,
+			&i.PaymentRefunded,
 			&i.AggregateVersion,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -554,6 +614,26 @@ func (q *Queries) MarkInboxProcessed(ctx context.Context, arg MarkInboxProcessed
 	return err
 }
 
+const markInventoryReleased = `-- name: MarkInventoryReleased :execrows
+UPDATE orders
+SET inventory_released = true, aggregate_version = aggregate_version + 1, updated_at = $2
+WHERE id = $1 AND aggregate_version = $3 AND NOT inventory_released
+`
+
+type MarkInventoryReleasedParams struct {
+	ID               string    `json:"id"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	AggregateVersion int64     `json:"aggregate_version"`
+}
+
+func (q *Queries) MarkInventoryReleased(ctx context.Context, arg MarkInventoryReleasedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markInventoryReleased, arg.ID, arg.UpdatedAt, arg.AggregateVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const markOutboxFailed = `-- name: MarkOutboxFailed :exec
 UPDATE outbox_events SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3, lease_owner = NULL, lease_until = NULL
 WHERE id = $1 AND published_at IS NULL
@@ -583,6 +663,26 @@ type MarkOutboxPublishedParams struct {
 func (q *Queries) MarkOutboxPublished(ctx context.Context, arg MarkOutboxPublishedParams) error {
 	_, err := q.db.ExecContext(ctx, markOutboxPublished, arg.ID, arg.PublishedAt)
 	return err
+}
+
+const markPaymentRefunded = `-- name: MarkPaymentRefunded :execrows
+UPDATE orders
+SET payment_refunded = true, aggregate_version = aggregate_version + 1, updated_at = $2
+WHERE id = $1 AND aggregate_version = $3 AND NOT payment_refunded
+`
+
+type MarkPaymentRefundedParams struct {
+	ID               string    `json:"id"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	AggregateVersion int64     `json:"aggregate_version"`
+}
+
+func (q *Queries) MarkPaymentRefunded(ctx context.Context, arg MarkPaymentRefundedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markPaymentRefunded, arg.ID, arg.UpdatedAt, arg.AggregateVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const recordInboxFailure = `-- name: RecordInboxFailure :one
@@ -667,7 +767,8 @@ const updateOrderCancellation = `-- name: UpdateOrderCancellation :one
 UPDATE orders SET status = 'CANCEL_REQUESTED', aggregate_version = aggregate_version + 1, updated_at = $3
 WHERE id = $1 AND aggregate_version = $2 AND status IN ('PENDING', 'CONFIRMED')
 RETURNING id, customer_id, currency, total_minor, status, failure_code, reservation_id,
-          payment_id, shipment_id, aggregate_version, created_at, updated_at
+          payment_id, shipment_id, inventory_released, payment_refunded,
+          aggregate_version, created_at, updated_at
 `
 
 type UpdateOrderCancellationParams struct {
@@ -676,9 +777,26 @@ type UpdateOrderCancellationParams struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-func (q *Queries) UpdateOrderCancellation(ctx context.Context, arg UpdateOrderCancellationParams) (Order, error) {
+type UpdateOrderCancellationRow struct {
+	ID                string         `json:"id"`
+	CustomerID        string         `json:"customer_id"`
+	Currency          string         `json:"currency"`
+	TotalMinor        sql.NullInt64  `json:"total_minor"`
+	Status            string         `json:"status"`
+	FailureCode       sql.NullString `json:"failure_code"`
+	ReservationID     sql.NullString `json:"reservation_id"`
+	PaymentID         sql.NullString `json:"payment_id"`
+	ShipmentID        sql.NullString `json:"shipment_id"`
+	InventoryReleased bool           `json:"inventory_released"`
+	PaymentRefunded   bool           `json:"payment_refunded"`
+	AggregateVersion  int64          `json:"aggregate_version"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) UpdateOrderCancellation(ctx context.Context, arg UpdateOrderCancellationParams) (UpdateOrderCancellationRow, error) {
 	row := q.db.QueryRowContext(ctx, updateOrderCancellation, arg.ID, arg.AggregateVersion, arg.UpdatedAt)
-	var i Order
+	var i UpdateOrderCancellationRow
 	err := row.Scan(
 		&i.ID,
 		&i.CustomerID,
@@ -689,6 +807,8 @@ func (q *Queries) UpdateOrderCancellation(ctx context.Context, arg UpdateOrderCa
 		&i.ReservationID,
 		&i.PaymentID,
 		&i.ShipmentID,
+		&i.InventoryReleased,
+		&i.PaymentRefunded,
 		&i.AggregateVersion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -756,4 +876,20 @@ func (q *Queries) UpdateOrderWorkflowState(ctx context.Context, arg UpdateOrderW
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateSagaPhase = `-- name: UpdateSagaPhase :exec
+UPDATE saga_instances SET phase = $2, version = version + 1, updated_at = $3
+WHERE id = $1
+`
+
+type UpdateSagaPhaseParams struct {
+	ID        string    `json:"id"`
+	Phase     string    `json:"phase"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpdateSagaPhase(ctx context.Context, arg UpdateSagaPhaseParams) error {
+	_, err := q.db.ExecContext(ctx, updateSagaPhase, arg.ID, arg.Phase, arg.UpdatedAt)
+	return err
 }

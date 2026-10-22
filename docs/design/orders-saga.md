@@ -36,7 +36,17 @@ When `PaymentAuthorized` is received, Orders verifies that the authorized amount
 
 ## Compensation
 
-Compensation is a first-class Saga phase, not an error log. Each compensation command has its own persisted step, attempt count, deadline, and operation ID. If payment was authorized, `RefundPayment` is required before terminal cancellation/failure unless Payments confirms it was never captured. If a compensation step fails after its retry budget, the public order may be `FAILED` but internal Saga state becomes `FAILED_REQUIRES_REVIEW`, which pages an operator.
+Compensation is a first-class Saga phase, not an error log. Cancellation uses the original
+`saga_id` and cancellation event as causation for release/refund commands. The order aggregate
+durably records `inventory_released` and `payment_refunded`; `CANCELLED` is emitted only when
+every required compensation fact has been received. An inventory rejection is treated as
+"inventory already released" and a payment failure as "payment was not captured", so the
+cancellation race cannot promote the order back to `CONFIRMED`.
+
+The current implementation persists the compensation completion flags and Outbox commands.
+Per-step retry/deadline repair state in `saga_steps`, and the `FAILED_REQUIRES_REVIEW` operator
+workflow for `commerce.payment.refund_failed.v1`, remain explicit follow-up work. A refund
+failure must be quarantined and reviewed; it is never acknowledged as a successful refund.
 
 ## Timeouts and ambiguous outcomes
 

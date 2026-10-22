@@ -2,7 +2,19 @@
 
 Orders is the authoritative owner of the order aggregate and its customer-facing asynchronous lifecycle. The service accepts asynchronous order requests, persists the order and Saga boundary transactionally, publishes Outbox messages, consumes dependency facts through an Inbox, and exposes status and cancellation operations.
 
-The service will expose an internal ClusterIP API on container port `8080` and local host port `8082`. Public traffic enters through Gateway on `http://localhost:8081`.
+The service exposes an internal ClusterIP API on container port `8080` and local host port `8082`. Public traffic enters through Gateway on `http://localhost:8081`.
+
+For a complete local manual flow, import [`../../contracts/postman/orders-service.postman_collection.json`](../../contracts/postman/orders-service.postman_collection.json)
+and [`../../contracts/postman/orders.local.postman_environment.json`](../../contracts/postman/orders.local.postman_environment.json).
+Run the collection's `Local setup` folder first; it creates a local demo customer,
+reads the verification email from MailHog, logs in through Gateway, and stores the
+tokens used by the order requests.
+
+Local Swagger URLs:
+
+- Gateway: `http://localhost:8081/v1/docs`
+- Orders: `http://localhost:8082/v1/docs`
+- Identity: `http://localhost:8080/v1/docs`
 
 ## Source of truth
 

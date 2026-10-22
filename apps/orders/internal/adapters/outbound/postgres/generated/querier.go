@@ -15,26 +15,30 @@ type Querier interface {
 	CountPendingOutbox(ctx context.Context) (int64, error)
 	GetIdempotency(ctx context.Context, arg GetIdempotencyParams) (IdempotencyRecord, error)
 	GetInbox(ctx context.Context, arg GetInboxParams) (InboxMessage, error)
-	GetOrder(ctx context.Context, id string) (Order, error)
+	GetOrder(ctx context.Context, id string) (GetOrderRow, error)
 	GetOrderItems(ctx context.Context, orderID string) ([]OrderItem, error)
+	GetSagaByOrderID(ctx context.Context, orderID string) (SagaInstance, error)
 	InsertIdempotency(ctx context.Context, arg InsertIdempotencyParams) (int64, error)
 	InsertInbox(ctx context.Context, arg InsertInboxParams) (int64, error)
 	InsertOrder(ctx context.Context, arg InsertOrderParams) error
 	InsertOrderItem(ctx context.Context, arg InsertOrderItemParams) error
 	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
 	InsertSaga(ctx context.Context, arg InsertSagaParams) error
-	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
+	ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error)
 	ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxEvent, error)
 	MarkInboxDeadLetter(ctx context.Context, arg MarkInboxDeadLetterParams) error
 	MarkInboxProcessed(ctx context.Context, arg MarkInboxProcessedParams) error
+	MarkInventoryReleased(ctx context.Context, arg MarkInventoryReleasedParams) (int64, error)
 	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
 	MarkOutboxPublished(ctx context.Context, arg MarkOutboxPublishedParams) error
+	MarkPaymentRefunded(ctx context.Context, arg MarkPaymentRefundedParams) (int64, error)
 	RecordInboxFailure(ctx context.Context, arg RecordInboxFailureParams) (RecordInboxFailureRow, error)
 	ReleaseMigrationLock(ctx context.Context, dollar_1 int64) error
 	UpdateIdempotencyResponse(ctx context.Context, arg UpdateIdempotencyResponseParams) error
-	UpdateOrderCancellation(ctx context.Context, arg UpdateOrderCancellationParams) (Order, error)
+	UpdateOrderCancellation(ctx context.Context, arg UpdateOrderCancellationParams) (UpdateOrderCancellationRow, error)
 	UpdateOrderItemQuote(ctx context.Context, arg UpdateOrderItemQuoteParams) error
 	UpdateOrderWorkflowState(ctx context.Context, arg UpdateOrderWorkflowStateParams) (int64, error)
+	UpdateSagaPhase(ctx context.Context, arg UpdateSagaPhaseParams) error
 }
 
 var _ Querier = (*Queries)(nil)

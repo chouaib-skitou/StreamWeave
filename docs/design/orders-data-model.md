@@ -8,11 +8,15 @@ Orders owns `orders_db` and the `orders_user` role. No application query crosses
 
 ### `orders`
 
-`id`, `customer_id`, `currency`, `total_minor`, `status`, `failure_code`, `reservation_id`, `payment_id`, `shipment_id`, `aggregate_version`, `created_at`, `updated_at`.
+`id`, `customer_id`, `currency`, `total_minor`, `status`, `failure_code`, `reservation_id`, `payment_id`, `shipment_id`, `inventory_released`, `payment_refunded`, `aggregate_version`, `created_at`, `updated_at`.
 
 Constraints: unique ID, supported uppercase currency, non-negative bounded totals when finalized, positive aggregate version, and indexed `(customer_id, created_at, id)` for stable listing. `total_minor` is nullable only while the initial Inventory quote is pending.
 
 `reservation_id`, `payment_id`, and `shipment_id` are opaque references owned by the corresponding service. Orders never dereferences them through another service database. A future shipping-address snapshot, if required by the approved contract, is encrypted at rest and redacted from logs; the v1 create contract intentionally does not accept address data.
+
+`inventory_released` and `payment_refunded` are durable compensation completion flags. They are
+updated with optimistic aggregate-version checks and are not cache state; Redis cannot replace
+them.
 
 ### `order_items`
 

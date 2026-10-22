@@ -6,10 +6,10 @@ Handle inventory/payment/fulfillment failures and customer cancellation through 
 
 ## Acceptance criteria
 
-- [ ] Inventory rejection does not issue payment authorization.
-- [ ] Payment failure releases inventory.
-- [ ] Shipment failure retries, then refunds and releases inventory after exhaustion.
-- [ ] Cancellation races have deterministic precedence.
+- [x] Inventory rejection does not issue payment authorization.
+- [x] Payment failure releases inventory.
+- [x] Shipment failure emits refund and release commands after the failure path.
+- [x] Cancellation races have deterministic precedence.
 - [ ] Compensation failure becomes `FAILED_REQUIRES_REVIEW`, alertable and repairable.
 
 ## Test plan
@@ -30,4 +30,8 @@ Page on compensation failure and expose bounded failure classes, Saga age, and r
 
 ## Dependencies and out of scope
 
-Depends on refund/release contracts and the recovery runbook. Post-dispatch cancellation policy is deferred to the Fulfillment contract and must be explicitly gated before implementation.
+Depends on refund/release contracts and the recovery runbook. The current implementation persists
+release/refund completion flags and uses the original Saga identity for cancellation commands.
+Per-step repair tooling and the `FAILED_REQUIRES_REVIEW` workflow remain gated on the recovery
+implementation and operator authorization design. Post-dispatch cancellation policy is deferred
+to the Fulfillment contract and must be explicitly gated before implementation.

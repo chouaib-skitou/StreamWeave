@@ -1,0 +1,202 @@
+{
+  "info": {
+    "name": "StreamWeave - Orders Service",
+    "description": "Manual end-to-end collection for the Orders API through the Gateway and through the internal Orders contract. Run Local setup first to create and verify a demo customer, then run Gateway Orders in order. Direct Orders requests require the local gateway service token and trusted actor headers.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway_url", "value": "http://localhost:8081" },
+    { "key": "identity_url", "value": "http://localhost:8080" },
+    { "key": "orders_url", "value": "http://localhost:8082" },
+    { "key": "mailhog_url", "value": "http://localhost:8025" },
+    { "key": "gateway_service_token", "value": "replace-with-development-service-token" },
+    { "key": "customer_email", "value": "postman.orders@example.test" },
+    { "key": "customer_password", "value": "correct horse battery staple" },
+    { "key": "customer_id", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "verification_token", "value": "" },
+    { "key": "session_id", "value": "" },
+    { "key": "order_id", "value": "" },
+    { "key": "product_id", "value": "prd_postman_demo" },
+    { "key": "next_cursor", "value": "" },
+    { "key": "correlation_id", "value": "" },
+    { "key": "idempotency_key", "value": "" },
+    { "key": "cancel_idempotency_key", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.variables.get('correlation_id')) pm.variables.set('correlation_id', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Local setup",
+      "item": [
+        {
+          "name": "Gateway liveness",
+          "request": { "method": "GET", "header": [], "url": "{{gateway_url}}/health/live" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Gateway is alive', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Identity liveness",
+          "request": { "method": "GET", "header": [], "url": "{{identity_url}}/health/live" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Identity is alive', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Orders liveness",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/health/live" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders is alive', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Register demo customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}" },
+            "url": "{{gateway_url}}/.well-known/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Customer created or already exists', () => pm.expect([201, 409]).to.include(pm.response.code));", "if (pm.response.code === 201) pm.environment.set('customer_id', pm.response.json().id);"] } }]
+        },
+        {
+          "name": "Read verification email from MailHog",
+          "request": { "method": "GET", "header": [], "url": "{{mailhog_url}}/api/v2/messages?limit=50" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('MailHog responded', () => pm.response.to.have.status(200));", "const email = pm.variables.replaceIn('{{customer_email}}').toLowerCase();", "const message = (pm.response.json().items || []).find(item => JSON.stringify(item).toLowerCase().includes(email) && /verify|verification/i.test(JSON.stringify(item)));", "if (message) { const body = message.Content && message.Content.Body ? message.Content.Body : ''; const match = body.match(/[?&]token=([A-Za-z0-9_-]+)/i); if (match) pm.environment.set('verification_token', match[1]); }", "pm.test('Verification token found (run after registration)', () => pm.expect(pm.environment.get('verification_token')).to.be.a('string').and.not.empty);"] } }]
+        },
+        {
+          "name": "Confirm email verification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{verification_token}}\"\n}" },
+            "url": "{{gateway_url}}/v1/auth/email-verification/confirm"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Email verified', () => pm.expect([204, 400]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "Login customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}" },
+            "url": "{{gateway_url}}/v1/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Login succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);", "const payload = JSON.parse(atob(body.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));", "pm.environment.set('customer_id', payload.sub);", "pm.environment.set('session_id', payload.sid || '');"] } }]
+        },
+        {
+          "name": "Refresh customer session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}" },
+            "url": "{{gateway_url}}/v1/auth/refresh"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Refresh succeeded', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.environment.set('access_token', body.access_token);", "pm.environment.set('refresh_token', body.refresh_token);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Gateway Orders (recommended)",
+      "description": "Public application flow. Gateway validates the human token, adds the trusted actor context, and routes to Orders.",
+      "item": [
+        {
+          "name": "Gateway readiness",
+          "request": { "method": "GET", "header": [], "url": "{{gateway_url}}/health/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Gateway is ready', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{idempotency_key}}" }, { "key": "X-Request-ID", "value": "{{correlation_id}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"currency\": \"EUR\",\n  \"items\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"quantity\": 1\n    }\n  ]\n}" },
+            "url": "{{gateway_url}}/v1/orders"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order accepted', () => pm.response.to.have.status(202));", "pm.environment.set('order_id', pm.response.json().order_id);"] } }]
+        },
+        {
+          "name": "Get order",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{gateway_url}}/v1/orders/{{order_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order returned', () => pm.response.to.have.status(200));", "pm.test('Order id matches', () => pm.expect(pm.response.json().order_id).to.eql(pm.environment.get('order_id')));"] } }]
+        },
+        {
+          "name": "List customer orders",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{gateway_url}}/v1/orders?limit=25" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Order list returned', () => pm.response.to.have.status(200));", "pm.environment.set('next_cursor', pm.response.json().next_cursor || '');"] } }]
+        },
+        {
+          "name": "List orders with status filter",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{gateway_url}}/v1/orders?limit=25&status=PENDING" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Filtered order list returned', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Cancel order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{cancel_idempotency_key}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason_code\": \"CUSTOMER_REQUESTED\"\n}" },
+            "url": "{{gateway_url}}/v1/orders/{{order_id}}/cancel"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Cancellation accepted or already conflicted', () => pm.expect([202, 409]).to.include(pm.response.code));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Orders internal contract",
+      "description": "Internal service contract for local diagnostics. Every business request carries the local Gateway service token plus trusted actor context.",
+      "item": [
+        {
+          "name": "Readiness",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/health/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Orders is ready', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Swagger UI",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/v1/docs" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Swagger UI available', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "OpenAPI contract",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/v1/openapi.yaml" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('OpenAPI contract available', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Metrics",
+          "request": { "method": "GET", "header": [], "url": "{{orders_url}}/metrics" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Metrics available', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Create order directly",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{gateway_service_token}}" }, { "key": "X-StreamWeave-Actor-ID", "value": "{{customer_id}}" }, { "key": "X-StreamWeave-Actor-Type", "value": "human" }, { "key": "X-StreamWeave-Scopes", "value": "orders:read:self orders:write:self" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"currency\": \"EUR\",\n  \"items\": [{\"product_id\": \"{{product_id}}\", \"quantity\": 1}]\n}" },
+            "url": "{{orders_url}}/v1/orders"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Direct order accepted', () => pm.response.to.have.status(202));"] } }]
+        },
+        {
+          "name": "Get order directly",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{gateway_service_token}}" }, { "key": "X-StreamWeave-Actor-ID", "value": "{{customer_id}}" }, { "key": "X-StreamWeave-Actor-Type", "value": "human" }, { "key": "X-StreamWeave-Scopes", "value": "orders:read:self" }], "url": "{{orders_url}}/v1/orders/{{order_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Direct order returned', () => pm.expect([200, 404]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "List orders directly",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{gateway_service_token}}" }, { "key": "X-StreamWeave-Actor-ID", "value": "{{customer_id}}" }, { "key": "X-StreamWeave-Actor-Type", "value": "human" }, { "key": "X-StreamWeave-Scopes", "value": "orders:read:self" }], "url": "{{orders_url}}/v1/orders?limit=25&status=PENDING" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Direct order list returned', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Cancel order directly",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{gateway_service_token}}" }, { "key": "X-StreamWeave-Actor-ID", "value": "{{customer_id}}" }, { "key": "X-StreamWeave-Actor-Type", "value": "human" }, { "key": "X-StreamWeave-Scopes", "value": "orders:cancel:self" }, { "key": "Idempotency-Key", "value": "{{$guid}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason_code\": \"CUSTOMER_REQUESTED\"\n}" }, "url": "{{orders_url}}/v1/orders/{{order_id}}/cancel" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Direct cancellation accepted or conflicted', () => pm.expect([202, 409]).to.include(pm.response.code));"] } }]
+        }
+      ]
+    }
+  ]
+}
